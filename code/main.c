@@ -1,4 +1,12 @@
 
+/*
+	TODO:
+	Watch for file changes and re-build
+	Blog post sorting
+	Convert dates to nice print format
+	Unix port
+*/
+
 #include <stdint.h>
 #include <stdio.h>
 #include <windows.h>

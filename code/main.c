@@ -1,30 +1,16 @@
 
 /*
 	TODO:
-	Watch for file changes and re-build
 	Blog post sorting
 	Convert dates to nice print format
-	Unix port
 */
 
 #include <stdint.h>
 #include <stdio.h>
 #include <windows.h>
+#include <sys/stat.h>
 
-#define MegaBytes(Amount) (Amount*1024*1024)
-typedef uint32_t u32;
-typedef uint8_t u8;
-typedef int32_t s32;
-typedef s32 b32;
-
-#define Assert(Expression) if (!(Expression)) {*((char*)(0)) = 0;}
-
-#define forc(Count) for (s32 i = 0;\
-						 i < Count;\
-						 ++i)
-#define fori(Count, Index) for (s32 Index = 0;\
-								Index < Count;\
-								++Index)
+#include "shared.c"
 
 typedef struct
 {
@@ -52,28 +38,21 @@ typedef struct
 	u32 FileCount;
 } file_list;
 
-void Error (char *Msg)
+typedef struct
 {
-	printf("Critical Error: %s \n", Msg);
+	char Name[64];
+	u64 ModifiedTime;
+} file_state;
+
+file_state FileStates[64];
+
+void AddFileStat (char *FileName)
+{
+	struct _stat64 Stat;
+	_stat64(FileName, &Stat);
 }
 
-u8 *Memory;
-u32 MemorySize = MegaBytes(1);
-u32 MemoryUsed = 0;
-
-u8 *PushMemory (u32 Size)
-{
-	if (MemoryUsed + Size > MemorySize)
-	{
-		Error("Ran out of memory");
-	}
-	
-	u8 *Result = Memory + MemoryUsed;
-	MemoryUsed += Size;
-	return Result;
-}
-
-char *ReadFileData (char *FileName)
+char *ReadFileDataOrError (char *FileName)
 {
 	FILE *FileHandle = fopen(FileName, "r");
 	if (!FileHandle)
@@ -113,10 +92,11 @@ void OutputChar (char Char, FILE *File)
 #endif
 }
 
-int main ()
+void Compile ()
 {
-	Memory = malloc(MemorySize);
-	memset(Memory, 0, MemorySize);
+	printf("Compiling... \n");
+
+	InitMemory();
 
 	file_list FileList = {0};
 
@@ -133,7 +113,7 @@ int main ()
 				*(Mem + strlen(FindData.cFileName)) = 0;
 				FileList.Files[FileList.FileCount].FileName = Mem;
 
-				char *FileData = ReadFileData(Mem);
+				char *FileData = ReadFileDataOrError(Mem);
 				FileList.Files[FileList.FileCount].Data = FileData;
 
 				++FileList.FileCount;
@@ -162,7 +142,7 @@ int main ()
 				FileList.Files[FileList.FileCount].FileName = Mem;
 				FileList.Files[FileList.FileCount].Post = TRUE;
 
-				char *FileData = ReadFileData(Mem);
+				char *FileData = ReadFileDataOrError(Mem);
 				// The stupidest possible thing
 				b32 ParsingMetaData = TRUE;
 				while (ParsingMetaData)
@@ -285,7 +265,7 @@ int main ()
 	// fread(TemplateFileData, sizeof(char), TemplateFileSize, TemplateFileHandle);
 	// fclose(TemplateFileHandle);
 
-	char *TemplateFileData = ReadFileData("template.html");
+	char *TemplateFileData = ReadFileDataOrError("template.html");
 
 	// printf("Tempalte file: %s \n", TemplateFileData);
 
@@ -296,7 +276,6 @@ int main ()
 	{
 		if (strcmp(FileList.Files[i].FileName, "template.html") != 0)
 		{
-			// char *FileData = ReadFileData(FileList.Files[i].FileName);
 			char *FileData = FileList.Files[i].Data;
 
 			char *OutputFileName = PushMemory(strlen(FileList.Files[i].FileName) + strlen("output/") + 1);
@@ -466,9 +445,85 @@ int main ()
 		}
 	}
 
-	printf("\n");
 	printf("Memory used: %i/%i \n", MemoryUsed, MemorySize);
+}
 
-	// system("pause");
+int main ()
+{
+	Compile();
+
+	directory_list dl0 = GetDirectoryList("*.html");
+	directory_list dl1 = GetDirectoryList("posts/*.html");
+	directory_list MasterDirList = ConcatDirectoryList(dl0, dl1);
+
+	while (TRUE)
+	{
+		// {
+		// 	char *WildCard = "*.html";
+		// 	WIN32_FIND_DATAA FindData;
+		// 	HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
+		// 	if (FileHandle != INVALID_HANDLE_VALUE)
+		// 	{
+		// 		while (TRUE)
+		// 		{
+		// 			printf("%s \n", FindData.cFileName);
+		// 			AddFileStat(FindData.cFileName);
+
+		// 			if (!FindNextFileA(FileHandle, &FindData))
+		// 			{
+		// 				break;
+		// 			}
+		// 		}
+		// 	}
+		// }
+		// {
+		// 	char *WildCard = "posts/*.html";
+		// 	WIN32_FIND_DATAA FindData;
+		// 	HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
+		// 	if (FileHandle != INVALID_HANDLE_VALUE)
+		// 	{
+		// 		while (TRUE)
+		// 		{
+		// 			printf("%s \n", FindData.cFileName);
+		// 			AddFileStat(FindData.cFileName);
+
+		// 			if (!FindNextFileA(FileHandle, &FindData))
+		// 			{
+		// 				break;
+		// 			}
+		// 		}
+		// 	}
+		// }
+
+		directory_list dl0 = GetDirectoryList("*.html");
+		directory_list dl1 = GetDirectoryList("posts/*.html");
+		directory_list DirList = ConcatDirectoryList(dl0, dl1);
+		// forc (DirList.FileCount)
+		// {
+		// 	printf("File: %s \n", DirList.Files[i].Name);
+		// }
+
+		if (DirList.FileCount != MasterDirList.FileCount)
+		{
+			Compile();
+			MasterDirList = DirList;
+		}
+		else
+		{
+			forc (DirList.FileCount)
+			{
+				if (CompareFileTime(&DirList.Files[i].WriteTime, &MasterDirList.Files[i].WriteTime))
+				{
+					Compile();
+					MasterDirList = DirList;
+					break;
+				}
+			}
+		}
+
+		Sleep(1000);
+	}
+
+	system("pause");
 	return 0;
 }

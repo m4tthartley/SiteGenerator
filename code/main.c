@@ -28,6 +28,7 @@ typedef struct
 	char *Desc;
 	char *DateString;
 	date Date;
+	u32 DateSortKey;
 	char *Url;
 	char *Image;
 } file;
@@ -90,6 +91,65 @@ void OutputChar (char Char, FILE *File)
 #else
 	printf("%c", Char);
 #endif
+}
+
+s32 StringChars (char *String, char Char)
+{
+	s32 NumChars = 0;
+	fori (strlen(String), CharIndex)
+	{
+		if (String[CharIndex] == '/')
+		{
+			++NumChars;
+		}
+	}
+
+	return NumChars;
+}
+
+char *Months[] =
+{
+	"Zero",
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec",
+};
+
+char *GetPrintDate (file f)
+{
+	char *Result = PushMemory(16);
+	sprintf(Result, "%i %s %i", f.Date.Day, Months[f.Date.Month], f.Date.Year);
+	return Result;
+}
+
+void BubbleSortFilesLatestTop (file_list *FileList)
+{
+	fori (FileList->FileCount, i0)
+	{
+		fori (FileList->FileCount-1, i1)
+		{
+			file f0 = FileList->Files[i1];
+			file f1 = FileList->Files[i1+1];
+			if (f0.DateString && f1.DateString)
+			{
+				if (f1.DateSortKey > f0.DateSortKey)
+				{
+					file Swap = FileList->Files[i1];
+					FileList->Files[i1] = FileList->Files[i1+1];
+					FileList->Files[i1+1] = Swap;
+				}
+			}
+		}
+	}
 }
 
 void Compile ()
@@ -236,9 +296,9 @@ void Compile ()
 		}
 	}
 
-	forc(FileList.FileCount)
+	forc (FileList.FileCount)
 	{
-		// printf("url: %s \n", FileList.Files[i].FileName);
+		// Gen image paths
 		FileList.Files[i].Url = PushMemory(strlen(FileList.Files[i].FileName) + 2);
 		sprintf(FileList.Files[i].Url, "/%s\0", FileList.Files[i].FileName);
 		FileList.Files[i].Image = PushMemory(strlen("/assets/") + (strlen(FileList.Files[i].FileName)-1) + 1);
@@ -248,6 +308,42 @@ void Compile ()
 		P[1] = 'n';
 		P[2] = 'g';
 		P[3] = 0;
+
+		// Gen dates
+		file *f = &FileList.Files[i];
+		if (f->DateString)
+		{
+			if (StringChars(f->DateString, '/') == 2)
+			{
+				// strchr(f->DateString, '/')
+				char *NewP;
+				s32 Day = strtol(f->DateString, &NewP, 0);
+				++NewP;
+				s32 Month = strtol(NewP, &NewP, 0);
+				++NewP;
+				s32 Year = strtol(NewP, &NewP, 0);
+
+				f->Date.Day = Day;
+				f->Date.Month = Month;
+				f->Date.Year = Year;
+
+				f->DateSortKey = ((u16)Year << 16) | ((u8)Month << 8) | ((u8)Day);
+				// printf("date %2i %2i %4i, sortkey 0x%8x %i \n", f->Date.Day, f->Date.Month, f->Date.Year, f->DateSortKey, f->DateSortKey);
+
+				int x = 0;
+			}
+		}
+	}
+
+	BubbleSortFilesLatestTop(&FileList);
+
+	forc (FileList.FileCount)
+	{
+		file *f = &FileList.Files[i];
+		if (f->DateString)
+		{
+			// printf("date %2i %2i %4i, sortkey 0x%8x %i \n", f->Date.Day, f->Date.Month, f->Date.Year, f->DateSortKey, f->DateSortKey);
+		}
 	}
 
 	// FILE *TemplateFileHandle = fopen("template.html", "r");
@@ -332,8 +428,9 @@ void Compile ()
 									FileData[FileIndex + ParseIndex + 8] == '}')
 								{
 									FileData[FileIndex + ParseIndex] = 0;
-									char *BlogLoopData = PushMemory(ParseIndex);
+									char *BlogLoopData = PushMemory(ParseIndex + 1);
 									strcpy(BlogLoopData, FileData + FileIndex);
+									*(BlogLoopData + ParseIndex) = 0;
 									FileIndex += ParseIndex + 9;
 									ParsingBlogLoop = FALSE;
 									// printf("Blog loop: %s \n", BlogLoopData);
@@ -383,7 +480,8 @@ void Compile ()
 												{
 													if (FileList.Files[BlogFilesIndex].DateString)
 													{
-														fputs(FileList.Files[BlogFilesIndex].DateString, OutputFileHandle);
+														// fputs(FileList.Files[BlogFilesIndex].DateString, OutputFileHandle);
+														fputs(GetPrintDate(FileList.Files[BlogFilesIndex]), OutputFileHandle);
 													}
 													BlogLoopIndex += 6;
 												}

@@ -66,6 +66,7 @@ file_type FileTypes[] =
 	{"jpg", "image/jpeg"},
 	{"jpeg", "image/jpeg"},
 	{"bmp", "image/bmp"},
+	{"mp4", "video/mp4"},
 };
 
 char *GetFileTypeForExtension (char *Extension)
@@ -226,6 +227,7 @@ int main ()
 
 			FileData = FRead(FileName);
 
+			// TODO: handle video files
 			if (FileData.Data && strcmp(FileName, "404.html") && strcmp(FileName, "404"))
 			{
 				// char *Ext = PathFindExtensionA(FileName);

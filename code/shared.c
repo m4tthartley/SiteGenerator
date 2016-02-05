@@ -3,9 +3,10 @@
 
 #define KiloBytes(Amount) (Amount*1024)
 #define MegaBytes(Amount) (Amount*1024*1024)
+typedef uint8_t u8;
+typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-typedef uint8_t u8;
 typedef int32_t s32;
 typedef s32 b32;
 
@@ -23,6 +24,7 @@ typedef s32 b32;
 
 typedef struct
 {
+	// TODO: Use pointer and PushMemory for this
 	char Name[DIRECTORY_LIST_STRING_MAX];
 	FILETIME WriteTime;
 } directory_file;
@@ -44,7 +46,7 @@ void Error (char *Msg)
 }
 
 u8 *Memory;
-u32 MemorySize = MegaBytes(1);
+u32 MemorySize = MegaBytes(1024);
 u32 MemoryUsed = 0;
 
 u8 *PushMemory (u32 Size)

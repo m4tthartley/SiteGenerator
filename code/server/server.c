@@ -1,9 +1,11 @@
 
 // #include <windows.h>
+#if WINDOWS
 #include <winsock2.h>
-#include <stdint.h>
+#else
+#endif
 
-#include "shared.c"
+#include "../shared.c"
 
 typedef uint32_t u32;
 typedef int32_t s32;
@@ -83,20 +85,16 @@ char *GetFileTypeForExtension (char *Extension)
 	return NULL;
 }
 
-int main ()
+#if WINDOWS
+typedef SOCKET socket_handle;
+#else
+typedef int socket_handle;
+#endif
+
+void InitServerSocket (socket_handle *ServerSocket)
 {
-	GetFileTypeForExtension("");
-	InitMemory();
-
-	printf("Staring server... \n");
-
-	// int RequestBufferSize = 1000000;
-	// char *RequestBuffer = (char*)malloc(RequestBufferSize);
-	// ZeroMemory(RequestBuffer, RequestBufferSize);
-
+#if WINDOWS
 	WSADATA WSAData;
-	SOCKET ServerSocket = INVALID_SOCKET;
-	SOCKET ConnectionSocket = INVALID_SOCKET;
 
 	int StartupResult = WSAStartup(MAKEWORD(2, 2), &WSAData);
 	if (StartupResult)
@@ -116,13 +114,13 @@ int main ()
 		printf("Get address info failed \n");
 	}
 
-	ServerSocket = socket(AddressInfo->ai_family, AddressInfo->ai_socktype, AddressInfo->ai_protocol);
-	if (ServerSocket == INVALID_SOCKET)
+	*ServerSocket = socket(AddressInfo->ai_family, AddressInfo->ai_socktype, AddressInfo->ai_protocol);
+	if (*ServerSocket == INVALID_SOCKET)
 	{
 		printf("Create socket failed \n");
 	}
 
-	int BindResult = bind(ServerSocket, AddressInfo->ai_addr, AddressInfo->ai_addrlen);
+	int BindResult = bind(*ServerSocket, AddressInfo->ai_addr, AddressInfo->ai_addrlen);
 	if (BindResult == SOCKET_ERROR)
 	{
 		printf("Bind socket failed \n");
@@ -130,13 +128,33 @@ int main ()
 
 	// Free addrinfo? Hahaha good one
 
-	int ListenResult = listen(ServerSocket, SOMAXCONN);
+	int ListenResult = listen(*ServerSocket, SOMAXCONN);
 	if (ListenResult == SOCKET_ERROR)
 	{
 		printf("Listen failed \n");
 	}
 
 	// Close server socket, not sure why
+#else
+
+#endif
+}
+
+int main ()
+{
+	GetFileTypeForExtension("");
+	InitMemory();
+
+	printf("Staring server... \n");
+
+	// int RequestBufferSize = 1000000;
+	// char *RequestBuffer = (char*)malloc(RequestBufferSize);
+	// ZeroMemory(RequestBuffer, RequestBufferSize);
+
+	socket_handle ServerSocket = INVALID_SOCKET;
+	socket_handle ConnectionSocket = INVALID_SOCKET;
+
+	InitServerSocket(&ServerSocket);
 
 	while (TRUE)
 	{

@@ -1,5 +1,8 @@
 
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define KiloBytes(Amount) (Amount*1024)
 #define MegaBytes(Amount) (Amount*1024*1024)
@@ -9,6 +12,9 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 typedef int32_t s32;
 typedef s32 b32;
+
+#define TRUE 1
+#define FALSE 0
 
 #define Assert(Expression) if (!(Expression)) {*((char*)(0)) = 0;}
 
@@ -26,7 +32,11 @@ typedef struct
 {
 	// TODO: Use pointer and PushMemory for this
 	char Name[DIRECTORY_LIST_STRING_MAX];
+#if WINDOWS
 	FILETIME WriteTime;
+#else
+	u64 WriteTime;
+#endif
 } directory_file;
 typedef struct
 {
@@ -116,6 +126,7 @@ file_data Win32ReadFile (char *FileName)
 {
 	file_data fd = {0};
 
+#if WINDOWS
 	HANDLE FileHandle = CreateFileA(FileName,
 		GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 
@@ -144,6 +155,7 @@ file_data Win32ReadFile (char *FileName)
 
 		CloseHandle(FileHandle);
 	}
+#endif
 
 	return fd;
 }
@@ -164,6 +176,7 @@ directory_list GetDirectoryList (char *WildCard)
 {
 	directory_list DirList = {0};
 
+#if WINDOWS
 	// char *WildCard = "posts/*.html";
 	WIN32_FIND_DATAA FindData;
 	HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
@@ -181,6 +194,7 @@ directory_list GetDirectoryList (char *WildCard)
 			}
 		}
 	}
+#endif
 
 	return DirList;
 }

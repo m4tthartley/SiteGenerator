@@ -1,2 +1,2 @@
 @echo off
-build_server
+build_generator

@@ -25,22 +25,29 @@ typedef s32 b32;
 								Index < Count;\
 								++Index)
 
-#define DIRECTORY_LIST_MAX 64
-#define DIRECTORY_LIST_STRING_MAX 64
+#define fiz(size) for (s32 i = 0;\
+					   i < size;\
+					   ++i)
+#define fjz(size) for (s32 j = 0;\
+					   j < size;\
+					   ++j)
+#define fkz(size) for (s32 k = 0;\
+					   k < size;\
+					   ++k)
+
+#define FILE_LIST_MAX 64
+#define FILE_LIST_STRING_MAX 64
 
 typedef struct
 {
 	// TODO: Use pointer and PushMemory for this
-	char Name[DIRECTORY_LIST_STRING_MAX];
-#if WINDOWS
+	char Name[FILE_LIST_STRING_MAX];
 	FILETIME WriteTime;
-#else
-	u64 WriteTime;
-#endif
+	// u64 WriteTime; // for linux
 } directory_file;
 typedef struct
 {
-	directory_file Files[DIRECTORY_LIST_MAX];
+	directory_file Files[FILE_LIST_MAX];
 	s32 FileCount;
 } directory_list;
 
@@ -55,18 +62,18 @@ void Error (char *Msg)
 	printf("Critical Error: %s \n", Msg);
 }
 
-u8 *Memory;
+char *Memory;
 u32 MemorySize = MegaBytes(1024);
 u32 MemoryUsed = 0;
 
-u8 *PushMemory (u32 Size)
+char *PushMemory (u32 Size)
 {
 	if (MemoryUsed + Size > MemorySize)
 	{
 		Error("Ran out of memory");
 	}
 	
-	u8 *Result = Memory + MemoryUsed;
+	char *Result = Memory + MemoryUsed;
 	MemoryUsed += Size;
 	return Result;
 }
@@ -79,7 +86,7 @@ void ClearMemory ()
 
 void InitMemory ()
 {
-	Memory = malloc(MemorySize);
+	Memory = (char*)malloc(MemorySize);
 	ClearMemory();
 }
 
@@ -126,7 +133,6 @@ file_data Win32ReadFile (char *FileName)
 {
 	file_data fd = {0};
 
-#if WINDOWS
 	HANDLE FileHandle = CreateFileA(FileName,
 		GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 
@@ -136,7 +142,7 @@ file_data Win32ReadFile (char *FileName)
 		if (GetFileSizeEx(FileHandle, &FileSize64))
 		{
 			u32 FileSize = (u32)FileSize64.QuadPart;
-			fd.Data = VirtualAlloc(0, FileSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+			fd.Data = (char*)VirtualAlloc(0, FileSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 			if (fd.Data)
 			{
 				DWORD BytesRead;
@@ -155,7 +161,6 @@ file_data Win32ReadFile (char *FileName)
 
 		CloseHandle(FileHandle);
 	}
-#endif
 
 	return fd;
 }
@@ -176,7 +181,6 @@ directory_list GetDirectoryList (char *WildCard)
 {
 	directory_list DirList = {0};
 
-#if WINDOWS
 	// char *WildCard = "posts/*.html";
 	WIN32_FIND_DATAA FindData;
 	HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
@@ -188,13 +192,17 @@ directory_list GetDirectoryList (char *WildCard)
 			DirList.Files[DirList.FileCount].WriteTime = FindData.ftLastWriteTime;
 			++DirList.FileCount;
 
+			// DWORD fileAttributes = GetFileAttributes(FindData.cFileName);
+			if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				int x = 0;
+			}
+
 			if (!FindNextFileA(FileHandle, &FindData))
 			{
 				break;
 			}
 		}
 	}
-#endif
 
 	return DirList;
 }

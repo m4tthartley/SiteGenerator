@@ -41,15 +41,15 @@ typedef s32 b32;
 typedef struct
 {
 	// TODO: Use pointer and PushMemory for this
-	char Name[FILE_LIST_STRING_MAX];
-	FILETIME WriteTime;
+	char name[FILE_LIST_STRING_MAX];
+	FILETIME writeTime;
 	// u64 WriteTime; // for linux
-} directory_file;
+} file;
 typedef struct
 {
-	directory_file Files[FILE_LIST_MAX];
-	s32 FileCount;
-} directory_list;
+	file files[FILE_LIST_MAX];
+	s32 count;
+} file_list;
 
 typedef struct
 {
@@ -177,9 +177,9 @@ file_data Win32ReadFile (char *FileName)
 // 	HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
 // }
 
-directory_list GetDirectoryList (char *WildCard)
+file_list GetFileList (char *WildCard)
 {
-	directory_list DirList = {0};
+	file_list fileList = {0};
 
 	// char *WildCard = "posts/*.html";
 	WIN32_FIND_DATAA FindData;
@@ -188,9 +188,9 @@ directory_list GetDirectoryList (char *WildCard)
 	{
 		while (TRUE)
 		{
-			strcpy(DirList.Files[DirList.FileCount].Name, FindData.cFileName);
-			DirList.Files[DirList.FileCount].WriteTime = FindData.ftLastWriteTime;
-			++DirList.FileCount;
+			strcpy(fileList.files[fileList.count].name, FindData.cFileName);
+			fileList.files[fileList.count].writeTime = FindData.ftLastWriteTime;
+			++fileList.count;
 
 			// DWORD fileAttributes = GetFileAttributes(FindData.cFileName);
 			if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -204,24 +204,24 @@ directory_list GetDirectoryList (char *WildCard)
 		}
 	}
 
-	return DirList;
+	return fileList;
 }
 
-directory_list ConcatDirectoryList (directory_list dl0, directory_list dl1)
+file_list ConcatFileList (file_list fl0, file_list fl1)
 {
-	directory_list DirList = {0};
-	forc (dl0.FileCount)
+	file_list fileList = {0};
+	forc (fl0.count)
 	{
-		strcpy(DirList.Files[DirList.FileCount].Name, dl0.Files[i].Name);
-		DirList.Files[DirList.FileCount].WriteTime = dl0.Files[i].WriteTime;
-		++DirList.FileCount;
+		strcpy(fileList.files[fileList.count].name, fl0.files[i].name);
+		fileList.files[fileList.count].writeTime = fl0.files[i].writeTime;
+		++fileList.count;
 	}
-	forc (dl1.FileCount)
+	forc (fl1.count)
 	{
-		strcpy(DirList.Files[DirList.FileCount].Name, dl1.Files[i].Name);
-		DirList.Files[DirList.FileCount].WriteTime = dl1.Files[i].WriteTime;
-		++DirList.FileCount;
+		strcpy(fileList.files[fileList.count].name, fl1.files[i].name);
+		fileList.files[fileList.count].writeTime = fl1.files[i].writeTime;
+		++fileList.count;
 	}
 
-	return DirList;
+	return fileList;
 }

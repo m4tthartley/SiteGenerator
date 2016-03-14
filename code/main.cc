@@ -5,6 +5,16 @@
 	Convert dates to nice print format
 */
 
+/*
+	Writting format idea
+
+	This is the first paragraph.
+
+	This another paragraph.
+
+	image.png Caption for image
+*/
+
 #include <stdint.h>
 #include <stdio.h>
 #include <windows.h>
@@ -13,12 +23,19 @@
 
 #include "shared.cc"
 
-typedef struct
-{
+struct menu {
+	struct {
+		char name[64];
+		char dest[64];
+	} items[64];
+	s32 count;
+};
+
+struct date {
 	s32 Day;
 	s32 Month;
 	s32 Year;
-} date;
+};
 
 struct page {
 	char *FileName;
@@ -35,16 +52,10 @@ struct page {
 
 struct page_list {
 	page pages[256];
-	u32 pageCount;
+	u32 count;
 };
 
-typedef struct
-{
-	char Name[64];
-	u64 ModifiedTime;
-} file_state;
-
-file_state FileStates[64];
+#include "output.cc"
 
 void AddFileStat (char *FileName)
 {
@@ -92,19 +103,19 @@ void OutputChar (char Char, FILE *File)
 #endif
 }
 
-s32 StringChars (char *String, char Char)
+/*s32 StringChars (char *String, char Char)
 {
 	s32 NumChars = 0;
 	fori (strlen(String), CharIndex)
 	{
-		if (String[CharIndex] == '/')
+		if (String[CharIndex] == Char)
 		{
 			++NumChars;
 		}
 	}
 
 	return NumChars;
-}
+}*/
 
 char *Months[] =
 {
@@ -132,9 +143,9 @@ char *GetPrintDate (page post)
 
 void BubbleSortFilesLatestTop (page_list *pages)
 {
-	fori (pages->pageCount, i0)
+	fori (pages->count, i0)
 	{
-		fori (pages->pageCount-1, i1)
+		fori (pages->count-1, i1)
 		{
 			page f0 = pages->pages[i1];
 			page f1 = pages->pages[i1+1];
@@ -158,11 +169,12 @@ enum token_type {
 	TOKEN_NEWLINE,
 	TOKEN_COLON,
 	TOKEN_SLASH,
+	TOKEN_END_OF_STREAM,
 };
 
 struct token {
 	token_type type;
-	char str[64];
+	char str[64]; // TODO: Might need increasing
 };
 
 struct tokenizer {
@@ -215,6 +227,11 @@ token GetToken (tokenizer *tizer)
 
 	while (*tizer->strp == ' ' || *tizer->strp == '\t') {
 		++tizer->strp;
+	}
+
+	if (*tizer->strp == 0) {
+		t.type = TOKEN_END_OF_STREAM;
+		return t;
 	}
 
 	if (*tizer->strp == '\n' || *tizer->strp == '\r') {
@@ -281,6 +298,26 @@ token ReadUntilNewLine (tokenizer *tizer)
 	return t;
 }
 
+token ReadUntilColon (tokenizer *tizer)
+{
+	token t = {};
+	s32 charCount = 0;
+
+	while (*tizer->strp == ' ' || *tizer->strp == '\t') {
+		++tizer->strp;
+	}
+
+	while (*tizer->strp != ':' && *tizer->strp != 0) {
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	}
+
+	++tizer->strp;
+
+	return t;
+}
+
 b32 FirstPartOfStrEquals (char *str, char *checkStr)
 {
 	s32 len = strlen(checkStr);
@@ -315,7 +352,7 @@ void Compile ()
 		{
 			do
 			{
-				page *currentPage = &pageList.pages[pageList.pageCount];
+				page *currentPage = &pageList.pages[pageList.count];
 
 				char *Mem = PushMemory(strlen(FindData.cFileName) + 1);
 				strcpy(Mem, FindData.cFileName);
@@ -325,7 +362,7 @@ void Compile ()
 				char *FileData = ReadFileDataOrError(Mem);
 				currentPage->Data = FileData;
 
-				++pageList.pageCount;
+				++pageList.count;
 
 				if (!FindNextFileA(FileHandle, &FindData))
 				{
@@ -349,9 +386,9 @@ void Compile ()
 				strcpy(Mem + strlen("posts/"), FindData.cFileName);
 				*(Mem + strlen(FindData.cFileName) + strlen("posts/")) = 0;
 
-				page *f = &FileList.Files[FileList.FileCount];
-				f->FileName = Mem;
-				f->Post = TRUE;
+				page *currentPage = &pageList.pages[pageList.count];
+				currentPage->FileName = Mem;
+				currentPage->Post = TRUE;
 
 				char *FileData = ReadFileDataOrError(Mem);
 
@@ -366,7 +403,7 @@ void Compile ()
 
 							char *title = PushMemory(strlen(titleText.str) + 1);
 							strcpy(title, titleText.str);
-							FileList.Files[FileList.FileCount].Title = title;
+							currentPage->Title = title;
 						}
 					} else if (strcmp(t.str, "desc") == 0) {
 						t = GetToken(&tizer);
@@ -376,32 +413,32 @@ void Compile ()
 
 							char *desc = PushMemory(strlen(descText.str) + 1);
 							strcpy(desc, descText.str);
-							FileList.Files[FileList.FileCount].Desc = desc;
+							currentPage->Desc = desc;
 						}
 					} else if (strcmp(t.str, "date") == 0) {
 						t = GetToken(&tizer);
 						if (t.type == TOKEN_COLON) {
 							t = GetToken(&tizer);
 							if (t.type == TOKEN_NUMBER) {
-								f->Date.Day = strtol(t.str, NULL, 0);
+								currentPage->Date.Day = strtol(t.str, NULL, 0);
 								t = GetToken(&tizer);
 								if (t.type == TOKEN_SLASH) {
 									t = GetToken(&tizer);
 									if (t.type == TOKEN_NUMBER) {
-										f->Date.Month = strtol(t.str, NULL, 0);
+										currentPage->Date.Month = strtol(t.str, NULL, 0);
 										t = GetToken(&tizer);
 										if (t.type == TOKEN_SLASH) {
 											t = GetToken(&tizer);
 											if (t.type == TOKEN_NUMBER) {
-												f->Date.Year = strtol(t.str, NULL, 0);
+												currentPage->Date.Year = strtol(t.str, NULL, 0);
 											}
 										}
 									}
 								}
 							}
 
-							f->DateString = "Yes there is a date";
-							f->DateSortKey = ((u16)f->Date.Year << 16) | ((u8)f->Date.Month << 8) | ((u8)f->Date.Day);
+							currentPage->DateString = "Yes there is a date";
+							currentPage->DateSortKey = ((u16)currentPage->Date.Year << 16) | ((u8)currentPage->Date.Month << 8) | ((u8)currentPage->Date.Day);
 						}
 					} else {
 						break;
@@ -410,9 +447,9 @@ void Compile ()
 					t = GetToken(&tizer);
 				}
 
-				FileList.Files[FileList.FileCount].Data = FileData;
+				currentPage->Data = FileData;
 
-				++FileList.FileCount;
+				++pageList.count;
 
 				if (!FindNextFileA(FileHandle, &FindData))
 				{
@@ -423,18 +460,55 @@ void Compile ()
 		}
 	}
 
-	forc (FileList.FileCount)
+	fiz (pageList.count)
 	{
+		page *currentPage = &pageList.pages[i];
+
+		// TODO: Here we could use FindFile and post_name.* to get all images and choose one which might be eaiser
 		// Gen image paths
-		FileList.Files[i].Url = PushMemory(strlen(FileList.Files[i].FileName) + 2);
-		sprintf(FileList.Files[i].Url, "/%s\0", FileList.Files[i].FileName);
-		FileList.Files[i].Image = PushMemory(strlen("/assets/") + (strlen(FileList.Files[i].FileName)-1) + 1);
-		sprintf(FileList.Files[i].Image, "/assets/%s", FileList.Files[i].FileName);
-		char *P = FileList.Files[i].Image + strlen(FileList.Files[i].Image) - 4;
-		P[0] = 'p';
-		P[1] = 'n';
-		P[2] = 'g';
-		P[3] = 0;
+		currentPage->Url = PushMemory(strlen(currentPage->FileName) + 2);
+		sprintf(currentPage->Url, "/%s\0", currentPage->FileName);
+
+		b32 jpg = false;
+		{
+			char *tempImagePath = PushMemory(strlen("output/assets/") + (strlen(currentPage->FileName)-1) + 1);
+			sprintf(tempImagePath, "output/assets/%s", currentPage->FileName);
+			char *ext = tempImagePath + strlen(tempImagePath) - 4;
+			ext[0] = 'p';
+			ext[1] = 'n';
+			ext[2] = 'g';
+			ext[3] = 0;
+
+			DWORD fileAttributes = GetFileAttributes(tempImagePath);
+			if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
+				ext[0] = 'j';
+				ext[1] = 'p';
+				ext[2] = 'g';
+
+				fileAttributes = GetFileAttributes(tempImagePath);
+				if (fileAttributes != INVALID_FILE_ATTRIBUTES) {
+					jpg = true;
+				} else {
+					printf("Cannot find image file for %s \n", currentPage->FileName);
+				}
+			}
+		}
+
+		currentPage->Image = PushMemory(strlen("/assets/") + (strlen(currentPage->FileName)-1) + 1);
+		sprintf(currentPage->Image, "/assets/%s", currentPage->FileName);
+		char *ext = currentPage->Image + strlen(currentPage->Image) - 4;
+		if (jpg) {
+			ext[0] = 'j';
+			ext[1] = 'p';
+			ext[2] = 'g';
+		} else {
+			ext[0] = 'p';
+			ext[1] = 'n';
+			ext[2] = 'g';
+		}
+		ext[3] = 0;
+
+
 
 #if 0
 		// Gen dates
@@ -464,12 +538,12 @@ void Compile ()
 #endif
 	}
 
-	BubbleSortFilesLatestTop(&FileList);
+	BubbleSortFilesLatestTop(&pageList);
 
-	forc (FileList.FileCount)
+	fiz (pageList.count)
 	{
-		page *f = &FileList.Files[i];
-		if (f->DateString)
+		page *p = &pageList.pages[i];
+		if (p->DateString)
 		{
 			// printf("date %2i %2i %4i, sortkey 0x%8x %i \n", f->Date.Day, f->Date.Month, f->Date.Year, f->DateSortKey, f->DateSortKey);
 		}
@@ -497,14 +571,16 @@ void Compile ()
 	mkdir("output");
 	mkdir("output/posts");
 
-	forc(FileList.FileCount)
+	fiz (pageList.count)
 	{
-		if (strcmp(FileList.Files[i].FileName, "template.html") != 0)
-		{
-			char *FileData = FileList.Files[i].Data;
+		page *currentPage = &pageList.pages[i];
 
-			char *OutputFileName = PushMemory(strlen(FileList.Files[i].FileName) + strlen("output/") + 1);
-			sprintf(OutputFileName, "output/%s\0", FileList.Files[i].FileName);
+		if (strcmp(currentPage->FileName, "template.html") != 0)
+		{
+			char *FileData = currentPage->Data;
+
+			char *OutputFileName = PushMemory(strlen(currentPage->FileName) + strlen("output/") + 1);
+			sprintf(OutputFileName, "output/%s\0", currentPage->FileName);
 			// printf("Output file: %s \n", OutputFileName);
 
 
@@ -542,55 +618,58 @@ void Compile ()
 									ParsingBlogLoop = FALSE;
 									// printf("Blog loop: %s \n", BlogLoopData);
 
-									fori(FileList.FileCount, BlogFilesIndex)
+									// fjz (pageList.count, BlogFilesIndex)
+									fjz (pageList.count)
 									{
-										if (FileList.Files[BlogFilesIndex].Post)
+										page *currentPost = &pageList.pages[j];
+
+										if (currentPost->Post)
 										{
 											fori(strlen(BlogLoopData), BlogLoopIndex)
 											{
 												// Title
 												if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{title}"))
 												{
-													if (FileList.Files[BlogFilesIndex].Title)
+													if (currentPost->Title)
 													{
-														fputs(FileList.Files[BlogFilesIndex].Title, OutputFileHandle);
+														fputs(currentPost->Title, OutputFileHandle);
 													}
 													BlogLoopIndex += 7;
 												}
 												// Desc
 												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{desc}"))
 												{
-													if (FileList.Files[BlogFilesIndex].Desc)
+													if (currentPost->Desc)
 													{
-														fputs(FileList.Files[BlogFilesIndex].Desc, OutputFileHandle);
+														fputs(currentPost->Desc, OutputFileHandle);
 													}
 													BlogLoopIndex += 6;
 												}
 												// Date
 												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{date}"))
 												{
-													if (FileList.Files[BlogFilesIndex].DateString)
+													if (currentPost->DateString)
 													{
 														// fputs(FileList.Files[BlogFilesIndex].DateString, OutputFileHandle);
-														fputs(GetPrintDate(FileList.Files[BlogFilesIndex]), OutputFileHandle);
+														fputs(GetPrintDate(*currentPost), OutputFileHandle);
 													}
 													BlogLoopIndex += 6;
 												}
 												// Url
 												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{url}"))
 												{
-													if (FileList.Files[BlogFilesIndex].Url)
+													if (currentPost->Url)
 													{
-														fputs(FileList.Files[BlogFilesIndex].Url, OutputFileHandle);
+														fputs(currentPost->Url, OutputFileHandle);
 													}
 													BlogLoopIndex += 5;
 												}
 												// Image
 												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{image}"))
 												{
-													if (FileList.Files[BlogFilesIndex].Image)
+													if (currentPost->Image)
 													{
-														fputs(FileList.Files[BlogFilesIndex].Image, OutputFileHandle);
+														fputs(currentPost->Image, OutputFileHandle);
 													}
 													BlogLoopIndex += 7;
 												}
@@ -627,37 +706,65 @@ void Compile ()
 	printf("Memory used: %i/%i \n", MemoryUsed, MemorySize);
 }
 
+void TestLoadMenuConfig ()
+{
+	file_data MenuConfig = Win32ReadFile("menu.cfg");
+	// printf("Menu config: %s \n", MenuConfig.Data);
+
+	menu m = {};
+	tokenizer tizer = InitTokenizer(MenuConfig.Data);
+
+	token t = ReadUntilColon(&tizer);
+	while (strlen(t.str)) {
+		strcpy(m.items[m.count].name, t.str);
+		t = ReadUntilNewLine(&tizer);
+		strcpy(m.items[m.count].dest, t.str);
+		++m.count;
+
+		t = ReadUntilColon(&tizer);
+	}
+
+	int x = 0;
+
+	// printf("%s \n", t.str);
+
+	// printf("%s \n", t.str);
+
+	/*token t = GetToken(&tizer);
+	while (t.type != TOKEN_END_OF_STREAM) {
+		printf("Config token: %s \n", t.str);
+		t = GetToken(&tizer);
+	}*/
+}
+
 int main ()
 {
+	TestLoadMenuConfig();
 	Compile();
 
-	directory_list dl0 = GetDirectoryList("*.html");
-	directory_list dl1 = GetDirectoryList("posts/*.html");
-	directory_list MasterDirList = ConcatDirectoryList(dl0, dl1);
+	file_list fl0 = GetFileList("*.html");
+	file_list fl1 = GetFileList("posts/*.html");
+	file_list masterFileList = ConcatFileList(fl0, fl1);
 
 	while (TRUE)
 	{
-		directory_list dl0 = GetDirectoryList("*.html");
-		directory_list dl1 = GetDirectoryList("posts/*.html");
-		directory_list DirList = ConcatDirectoryList(dl0, dl1);
-		// forc (DirList.FileCount)
-		// {
-		// 	printf("File: %s \n", DirList.Files[i].Name);
-		// }
+		file_list fl0 = GetFileList("*.html");
+		file_list fl1 = GetFileList("posts/*.html");
+		file_list fileList = ConcatFileList(fl0, fl1);
 
-		if (DirList.FileCount != MasterDirList.FileCount)
+		if (fileList.count != masterFileList.count)
 		{
 			Compile();
-			MasterDirList = DirList;
+			masterFileList = fileList;
 		}
 		else
 		{
-			forc (DirList.FileCount)
+			forc (fileList.count)
 			{
-				if (CompareFileTime(&DirList.Files[i].WriteTime, &MasterDirList.Files[i].WriteTime))
+				if (CompareFileTime(&fileList.files[i].writeTime, &masterFileList.files[i].writeTime))
 				{
 					Compile();
-					MasterDirList = DirList;
+					masterFileList = fileList;
 					break;
 				}
 			}

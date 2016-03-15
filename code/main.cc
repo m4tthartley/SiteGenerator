@@ -336,11 +336,44 @@ b32 FirstPartOfStrEquals (char *str, char *checkStr)
 	return result;
 }
 
+menu LoadMenuConfig ()
+{
+	file_data MenuConfig = Win32ReadFile("menu.cfg");
+	// printf("Menu config: %s \n", MenuConfig.Data);
+
+	menu m = {};
+	tokenizer tizer = InitTokenizer(MenuConfig.Data);
+
+	token t = ReadUntilColon(&tizer);
+	while (strlen(t.str)) {
+		strcpy(m.items[m.count].name, t.str);
+		t = ReadUntilNewLine(&tizer);
+		strcpy(m.items[m.count].dest, t.str);
+		++m.count;
+
+		t = ReadUntilColon(&tizer);
+	}
+
+	int x = 0;
+
+	// printf("%s \n", t.str);
+
+	// printf("%s \n", t.str);
+
+	/*token t = GetToken(&tizer);
+	while (t.type != TOKEN_END_OF_STREAM) {
+		printf("Config token: %s \n", t.str);
+		t = GetToken(&tizer);
+	}*/
+
+	return m;
+}
+
 void Compile ()
 {
-	printf("Compiling... \n");
+	ClearMemory();
 
-	InitMemory();
+	printf("Compiling... \n");
 
 	page_list pageList = {0};
 
@@ -370,6 +403,8 @@ void Compile ()
 				}
 			}
 			while (FileHandle != INVALID_HANDLE_VALUE);
+
+			FindClose(FileHandle);
 		}
 	}
 
@@ -457,6 +492,8 @@ void Compile ()
 				}
 			}
 			while (FileHandle != INVALID_HANDLE_VALUE);
+
+			FindClose(FileHandle);
 		}
 	}
 
@@ -564,6 +601,8 @@ void Compile ()
 	// fread(TemplateFileData, sizeof(char), TemplateFileSize, TemplateFileHandle);
 	// fclose(TemplateFileHandle);
 
+	menu pageMenu = LoadMenuConfig();
+	char *styleFileData = ReadFileDataOrError("style.css");
 	char *TemplateFileData = ReadFileDataOrError("template.html");
 
 	// printf("Tempalte file: %s \n", TemplateFileData);
@@ -590,13 +629,16 @@ void Compile ()
 				// Error("Unable to open template file");
 				printf("FileError: %s \n", strerror(errno));
 			}
-			u32 TemplateFileSize = strlen(TemplateFileData);
-			fori(TemplateFileSize, TemplateFileIndex)
-			{
-				Assert(OutputFileHandle);
-				Assert(TemplateFileData[TemplateFileIndex]);
 
-				if (FirstPartOfStrEquals(&TemplateFileData[TemplateFileIndex], "{content}"))
+			// u32 TemplateFileSize = strlen(TemplateFileData);
+			// fori(TemplateFileSize, TemplateFileIndex)
+			{
+				O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
+
+				Assert(OutputFileHandle);
+				// Assert(TemplateFileData[TemplateFileIndex]);
+
+				// if (FirstPartOfStrEquals(&TemplateFileData[TemplateFileIndex], "{content}"))
 				{
 					u32 FileDataSize = strlen(FileData);
 					fori(FileDataSize, FileIndex)
@@ -694,10 +736,12 @@ void Compile ()
 						}
 					}
 
-					TemplateFileIndex += 9;
+					// TemplateFileIndex += 9;
 				}
 
-				OutputChar(TemplateFileData[TemplateFileIndex], OutputFileHandle);
+				// OutputChar(TemplateFileData[TemplateFileIndex], OutputFileHandle);
+
+				O_TemplateFooter(OutputFileHandle);
 			}
 			fclose(OutputFileHandle);
 		}
@@ -706,51 +750,32 @@ void Compile ()
 	printf("Memory used: %i/%i \n", MemoryUsed, MemorySize);
 }
 
-void TestLoadMenuConfig ()
-{
-	file_data MenuConfig = Win32ReadFile("menu.cfg");
-	// printf("Menu config: %s \n", MenuConfig.Data);
-
-	menu m = {};
-	tokenizer tizer = InitTokenizer(MenuConfig.Data);
-
-	token t = ReadUntilColon(&tizer);
-	while (strlen(t.str)) {
-		strcpy(m.items[m.count].name, t.str);
-		t = ReadUntilNewLine(&tizer);
-		strcpy(m.items[m.count].dest, t.str);
-		++m.count;
-
-		t = ReadUntilColon(&tizer);
-	}
-
-	int x = 0;
-
-	// printf("%s \n", t.str);
-
-	// printf("%s \n", t.str);
-
-	/*token t = GetToken(&tizer);
-	while (t.type != TOKEN_END_OF_STREAM) {
-		printf("Config token: %s \n", t.str);
-		t = GetToken(&tizer);
-	}*/
-}
-
 int main ()
 {
-	TestLoadMenuConfig();
+	InitMemory();
+
 	Compile();
 
+	/*file_list fl0 = GetFileList("*.html");
+	file_list fl1 = GetFileList("posts/*.html");
+	file_list masterFileList = ConcatFileList(fl0, fl1);*/
 	file_list fl0 = GetFileList("*.html");
 	file_list fl1 = GetFileList("posts/*.html");
-	file_list masterFileList = ConcatFileList(fl0, fl1);
+	file_list fl2 = GetFileList("*.cfg");
+	file_list fl3 = GetFileList("*.css");
+	file_list fileList0 = ConcatFileList(fl0, fl1);
+	file_list fileList1 = ConcatFileList(fl2, fl3);
+	file_list masterFileList = ConcatFileList(fileList0, fileList1);
 
 	while (TRUE)
 	{
 		file_list fl0 = GetFileList("*.html");
 		file_list fl1 = GetFileList("posts/*.html");
-		file_list fileList = ConcatFileList(fl0, fl1);
+		file_list fl2 = GetFileList("*.cfg");
+		file_list fl3 = GetFileList("*.css");
+		file_list fileList0 = ConcatFileList(fl0, fl1);
+		file_list fileList1 = ConcatFileList(fl2, fl3);
+		file_list fileList = ConcatFileList(fileList0, fileList1);
 
 		if (fileList.count != masterFileList.count)
 		{

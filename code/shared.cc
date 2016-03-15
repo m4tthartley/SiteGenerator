@@ -142,7 +142,8 @@ file_data Win32ReadFile (char *FileName)
 		if (GetFileSizeEx(FileHandle, &FileSize64))
 		{
 			u32 FileSize = (u32)FileSize64.QuadPart;
-			fd.Data = (char*)VirtualAlloc(0, FileSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+			// fd.Data = (char*)VirtualAlloc(0, FileSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+			fd.Data = (char*)PushMemory(FileSize);
 			if (fd.Data)
 			{
 				DWORD BytesRead;
@@ -153,7 +154,7 @@ file_data Win32ReadFile (char *FileName)
 				}
 				else
 				{
-					VirtualFree(fd.Data, 0, MEM_RELEASE);
+					// VirtualFree(fd.Data, 0, MEM_RELEASE);
 					fd.Data = 0;
 				}
 			}
@@ -202,6 +203,8 @@ file_list GetFileList (char *WildCard)
 				break;
 			}
 		}
+
+		FindClose(FileHandle);
 	}
 
 	return fileList;

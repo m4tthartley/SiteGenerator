@@ -37,6 +37,47 @@ struct date {
 	s32 Year;
 };
 
+enum page_content_type {
+	CONTENT_HEADER,
+	CONTENT_SECONDARY_HEADER,
+	CONTENT_PARAGRAPH,
+	CONTENT_IMAGE,
+};
+
+enum paragraph_word_type {
+	PARAGRAPH_WORD_WORD,
+	PARAGRAPH_WORD_LINK,
+};
+
+struct page_content {
+	page_content_type type;
+	union {
+		struct {
+			char str[256];
+		} header;
+		struct {
+			// char str[1024];
+			struct {
+				paragraph_word_type type;
+				union {
+					char str[32];
+					struct {
+						char url[128];
+						char str[64];
+					} link;
+				};
+			} words[256];
+			s32 wordCount;
+		} paragraph;
+		struct {
+			char fileName[64];
+			char caption[256];
+		} image;
+	};
+
+	page_content *next;
+};
+
 struct page {
 	char *FileName;
 	char *Data;
@@ -48,6 +89,9 @@ struct page {
 	u32 DateSortKey;
 	char *Url;
 	char *Image;
+
+	page_content *content;
+	// s32 contentCount;
 };
 
 struct page_list {
@@ -170,16 +214,23 @@ enum token_type {
 	TOKEN_COLON,
 	TOKEN_SLASH,
 	TOKEN_END_OF_STREAM,
+	TOKEN_OPEN_SQUARE_BRACKET,
+	TOKEN_CLOSE_SQUARE_BRACKET,
+	TOKEN_OPEN_BRACKET,
+	TOKEN_CLOSE_BRACKET,
+	TOKEN_COMMENT,
+	TOKEN_WORD,
 };
 
 struct token {
 	token_type type;
-	char str[64]; // TODO: Might need increasing
+	char str[1024]; // TODO: Used to be 64 // TODO: Might need increasing
 };
 
 struct tokenizer {
 	char *str;
 	char *strp;
+	char *currentLine;
 };
 
 tokenizer InitTokenizer (char *str)
@@ -187,7 +238,13 @@ tokenizer InitTokenizer (char *str)
 	tokenizer t = {};
 	t.str = str;
 	t.strp = str;
+	t.currentLine = str;
 	return t;
+}
+
+void RestartLine (tokenizer *tizer)
+{
+	tizer->strp = tizer->currentLine;
 }
 
 b32 CharIsAlpha (char c)
@@ -214,6 +271,19 @@ b32 CharIsAlphaNumeric (char c)
 b32 CharIsNumeric (char c)
 {
 	if (c >= '0' && c <= '9') {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+b32 CharIsPath (char c) {
+	if (CharIsAlphaNumeric(c) ||
+		c == '_' ||
+		c == '-' ||
+		c == '.' ||
+		c == '/' ||
+		c == ':') {
 		return true;
 	} else {
 		return false;
@@ -269,10 +339,91 @@ token GetToken (tokenizer *tizer)
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
+	} else if (*tizer->strp == '[') {
+		t.type = TOKEN_OPEN_SQUARE_BRACKET;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else if (*tizer->strp == ']') {
+		t.type = TOKEN_CLOSE_SQUARE_BRACKET;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
 	} else {
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
+	}
+
+	return t;
+}
+
+token GetContentToken (tokenizer *tizer)
+{
+	token t = {};
+	s32 charCount = 0;
+
+	while (*tizer->strp == ' ' || *tizer->strp == '\t') {
+		++tizer->strp;
+	}
+
+	if (*tizer->strp == 0) {
+		t.type = TOKEN_END_OF_STREAM;
+		return t;
+	}
+
+	if (*tizer->strp == '\n' || *tizer->strp == '\r') {
+		t.type = TOKEN_NEWLINE;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+		tizer->currentLine = tizer->strp;
+	} else if (*tizer->strp == '[') {
+		t.type = TOKEN_OPEN_SQUARE_BRACKET;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else if (*tizer->strp == ']') {
+		t.type = TOKEN_CLOSE_SQUARE_BRACKET;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else if (*tizer->strp == '(') {
+		t.type = TOKEN_OPEN_BRACKET;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else if (*tizer->strp == ')') {
+		t.type = TOKEN_CLOSE_BRACKET;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else if (*tizer->strp == '/' && *(tizer->strp+1) == '/') {
+		t.type = TOKEN_COMMENT;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else {
+		t.type = TOKEN_WORD;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+		while (*tizer->strp != ' ' &&
+			   *tizer->strp != '\t' &&
+			   *tizer->strp != '\n' &&
+			   *tizer->strp != '\r' &&
+			   *tizer->strp != 0) {
+			t.str[charCount] = *tizer->strp;
+			++charCount;
+			if (*tizer->strp == '\n' || *tizer->strp == '\r') {
+				tizer->currentLine = ++tizer->strp;
+			} else {
+				++tizer->strp;
+			}
+		}
 	}
 
 	return t;
@@ -294,6 +445,7 @@ token ReadUntilNewLine (tokenizer *tizer)
 	}
 
 	++tizer->strp;
+	tizer->currentLine = tizer->strp;
 
 	return t;
 }
@@ -308,6 +460,46 @@ token ReadUntilColon (tokenizer *tizer)
 	}
 
 	while (*tizer->strp != ':' && *tizer->strp != 0) {
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	}
+
+	++tizer->strp;
+
+	return t;
+}
+
+token ReadUntilCloseSquareBracket (tokenizer *tizer)
+{
+	token t = {};
+	s32 charCount = 0;
+
+	while (*tizer->strp == ' ' || *tizer->strp == '\t') {
+		++tizer->strp;
+	}
+
+	while (*tizer->strp != ']' && *tizer->strp != 0) {
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	}
+
+	++tizer->strp;
+
+	return t;
+}
+
+token ReadUntilCloseBracket (tokenizer *tizer)
+{
+	token t = {};
+	s32 charCount = 0;
+
+	while (*tizer->strp == ' ' || *tizer->strp == '\t') {
+		++tizer->strp;
+	}
+
+	while (*tizer->strp != ')' && *tizer->strp != 0) {
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
@@ -369,137 +561,224 @@ menu LoadMenuConfig ()
 	return m;
 }
 
+void ParsePage (page *p, char *file)
+{
+	*p = {};
+
+	tokenizer tizer = InitTokenizer(file);
+	token t = GetContentToken(&tizer);
+
+	b32 firstHeaderUsed = false;
+	s32 contentCount = 0;
+
+	while (t.type != TOKEN_END_OF_STREAM) {
+		page_content *content = (page_content*)PushMemory(sizeof(page_content));
+		if (t.type == TOKEN_OPEN_SQUARE_BRACKET) {
+			t = ReadUntilCloseSquareBracket(&tizer);
+
+			if (firstHeaderUsed) {
+				// page_content *content = (page_content*)PushMemory(sizeof(page_content));
+				content->type = CONTENT_SECONDARY_HEADER;
+				strcpy(content->header.str, t.str);
+
+				content->next = p->content;
+				p->content = content;
+				++contentCount;
+			} else {
+				// page_content *content = (page_content*)PushMemory(sizeof(page_content));
+				content->type = CONTENT_HEADER;
+				strcpy(content->header.str, t.str);
+				firstHeaderUsed = true;
+
+				content->next = p->content;
+				p->content = content;
+				++contentCount;
+			}
+		} else if (t.type == TOKEN_WORD) {
+			RestartLine(&tizer);
+
+			content->type = CONTENT_PARAGRAPH;
+
+			t = GetContentToken(&tizer);
+			while (t.type != TOKEN_NEWLINE) {
+				if (t.type == TOKEN_WORD) {
+					content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_WORD;
+					strcpy(content->paragraph.words[content->paragraph.wordCount].str, t.str);
+					++content->paragraph.wordCount;
+				} else if (t.type == TOKEN_OPEN_BRACKET) {
+					content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_LINK;
+					t = GetContentToken(&tizer);
+					if (t.type == TOKEN_WORD) {
+						strcpy(content->paragraph.words[content->paragraph.wordCount].link.url, t.str);
+						t = ReadUntilCloseBracket(&tizer);
+						strcpy(content->paragraph.words[content->paragraph.wordCount].link.str, t.str);
+						/*if (t.type == TOKEN_WORD) {
+							
+							t = GetContentToken(&tizer);
+						} else if (t.type == TOKEN_CLOSE_BRACKET) {
+							
+						}*/
+					}
+
+					++content->paragraph.wordCount;
+				}
+
+				t = GetContentToken(&tizer);
+			}
+			
+			// strcpy(content->paragraph.str, t.str);
+
+			content->next = p->content;
+			p->content = content;
+			++contentCount;
+		}
+
+		t = GetContentToken(&tizer);
+	}
+}
+
 void Compile ()
 {
 	ClearMemory();
 
 	printf("Compiling... \n");
 
-	page_list pageList = {0};
+	page_list *pageList = (page_list*)PushMemory(sizeof(page_list));
 
 	{
-		char *WildCard = "*.html";
-		WIN32_FIND_DATAA FindData;
-		HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
-		if (FileHandle != INVALID_HANDLE_VALUE)
-		{
-			do
-			{
-				page *currentPage = &pageList.pages[pageList.count];
+		file_list pageFiles = GetFileList("*.html");
+		fiz (pageFiles.count) {
+			page *currentPage = &pageList->pages[pageList->count];
 
-				char *Mem = PushMemory(strlen(FindData.cFileName) + 1);
-				strcpy(Mem, FindData.cFileName);
-				*(Mem + strlen(FindData.cFileName)) = 0;
-				currentPage->FileName = Mem;
+			char *Mem = PushMemory(strlen(pageFiles.files[i].name) + 1);
+			strcpy(Mem, pageFiles.files[i].name);
+			*(Mem + strlen(pageFiles.files[i].name)) = 0;
+			currentPage->FileName = Mem;
 
-				char *FileData = ReadFileDataOrError(Mem);
-				currentPage->Data = FileData;
+			char *FileData = ReadFileDataOrError(Mem);
+			currentPage->Data = FileData;
 
-				++pageList.count;
-
-				if (!FindNextFileA(FileHandle, &FindData))
-				{
-					break;
-				}
-			}
-			while (FileHandle != INVALID_HANDLE_VALUE);
-
-			FindClose(FileHandle);
+			++pageList->count;
 		}
 	}
 
 	{
-		char *WildCard = "posts/*.html";
-		WIN32_FIND_DATAA FindData;
-		HANDLE FileHandle = FindFirstFileA(WildCard, &FindData);
-		if (FileHandle != INVALID_HANDLE_VALUE)
-		{
-			do
-			{
-				char *Mem = PushMemory(strlen("posts/") + strlen(FindData.cFileName) + 1);
-				strcpy(Mem, "posts/");
-				strcpy(Mem + strlen("posts/"), FindData.cFileName);
-				*(Mem + strlen(FindData.cFileName) + strlen("posts/")) = 0;
+		file_list postFiles = GetFileList("posts/*.html");
+		fiz (postFiles.count) {
+			char *Mem = PushMemory(strlen("posts/") + strlen(postFiles.files[i].name) + 1);
+			strcpy(Mem, "posts/");
+			strcpy(Mem + strlen("posts/"), postFiles.files[i].name);
+			*(Mem + strlen(postFiles.files[i].name) + strlen("posts/")) = 0;
 
-				page *currentPage = &pageList.pages[pageList.count];
-				currentPage->FileName = Mem;
-				currentPage->Post = TRUE;
+			printf("Parsing %s \n", postFiles.files[i].name);
 
-				char *FileData = ReadFileDataOrError(Mem);
+			page *currentPage = &pageList->pages[pageList->count];
+			currentPage->FileName = Mem;
+			currentPage->Post = TRUE;
 
-				tokenizer tizer = InitTokenizer(FileData);
-				token t = GetToken(&tizer);
-				while (t.type == TOKEN_IDENTIFIER) {
-					if (strcmp(t.str, "title") == 0) {
+			char *FileData = ReadFileDataOrError(Mem);
+
+			tokenizer tizer = InitTokenizer(FileData);
+			token t = GetToken(&tizer);
+			while (t.type == TOKEN_IDENTIFIER) {
+				if (strcmp(t.str, "title") == 0) {
+					t = GetToken(&tizer);
+					if (t.type == TOKEN_COLON) {
+
+						token titleText = ReadUntilNewLine(&tizer);
+
+						char *title = PushMemory(strlen(titleText.str) + 1);
+						strcpy(title, titleText.str);
+						currentPage->Title = title;
+					}
+				} else if (strcmp(t.str, "desc") == 0) {
+					t = GetToken(&tizer);
+					if (t.type == TOKEN_COLON) {
+
+						token descText = ReadUntilNewLine(&tizer);
+
+						char *desc = PushMemory(strlen(descText.str) + 1);
+						strcpy(desc, descText.str);
+						currentPage->Desc = desc;
+					}
+				} else if (strcmp(t.str, "date") == 0) {
+					t = GetToken(&tizer);
+					if (t.type == TOKEN_COLON) {
 						t = GetToken(&tizer);
-						if (t.type == TOKEN_COLON) {
-
-							token titleText = ReadUntilNewLine(&tizer);
-
-							char *title = PushMemory(strlen(titleText.str) + 1);
-							strcpy(title, titleText.str);
-							currentPage->Title = title;
-						}
-					} else if (strcmp(t.str, "desc") == 0) {
-						t = GetToken(&tizer);
-						if (t.type == TOKEN_COLON) {
-
-							token descText = ReadUntilNewLine(&tizer);
-
-							char *desc = PushMemory(strlen(descText.str) + 1);
-							strcpy(desc, descText.str);
-							currentPage->Desc = desc;
-						}
-					} else if (strcmp(t.str, "date") == 0) {
-						t = GetToken(&tizer);
-						if (t.type == TOKEN_COLON) {
+						if (t.type == TOKEN_NUMBER) {
+							currentPage->Date.Day = strtol(t.str, NULL, 0);
 							t = GetToken(&tizer);
-							if (t.type == TOKEN_NUMBER) {
-								currentPage->Date.Day = strtol(t.str, NULL, 0);
+							if (t.type == TOKEN_SLASH) {
 								t = GetToken(&tizer);
-								if (t.type == TOKEN_SLASH) {
+								if (t.type == TOKEN_NUMBER) {
+									currentPage->Date.Month = strtol(t.str, NULL, 0);
 									t = GetToken(&tizer);
-									if (t.type == TOKEN_NUMBER) {
-										currentPage->Date.Month = strtol(t.str, NULL, 0);
+									if (t.type == TOKEN_SLASH) {
 										t = GetToken(&tizer);
-										if (t.type == TOKEN_SLASH) {
-											t = GetToken(&tizer);
-											if (t.type == TOKEN_NUMBER) {
-												currentPage->Date.Year = strtol(t.str, NULL, 0);
-											}
+										if (t.type == TOKEN_NUMBER) {
+											currentPage->Date.Year = strtol(t.str, NULL, 0);
 										}
 									}
 								}
 							}
-
-							currentPage->DateString = "Yes there is a date";
-							currentPage->DateSortKey = ((u16)currentPage->Date.Year << 16) | ((u8)currentPage->Date.Month << 8) | ((u8)currentPage->Date.Day);
 						}
-					} else {
-						break;
+
+						currentPage->DateString = "Yes there is a date";
+						currentPage->DateSortKey = ((u16)currentPage->Date.Year << 16) | ((u8)currentPage->Date.Month << 8) | ((u8)currentPage->Date.Day);
 					}
-
-					t = GetToken(&tizer);
-				}
-
-				currentPage->Data = FileData;
-
-				++pageList.count;
-
-				if (!FindNextFileA(FileHandle, &FindData))
-				{
+				} else {
 					break;
 				}
-			}
-			while (FileHandle != INVALID_HANDLE_VALUE);
 
-			FindClose(FileHandle);
+				t = GetToken(&tizer);
+			}
+
+			currentPage->Data = tizer.strp;
+			// currentPage->Data = FileData;
+
+			++pageList->count;
 		}
 	}
 
-	fiz (pageList.count)
 	{
-		page *currentPage = &pageList.pages[i];
+		// Test blog file parsing
+		file_list blogFiles = GetFileList("posts/*.blog");
+		fiz (blogFiles.count) {
+			char s[64];
+			sprintf(s, "posts/%s", blogFiles.files[i].name);
+			char *blogFileData = ReadFileDataOrError(s);
+			page *blogPage = (page*)PushMemory(sizeof(page));
+			ParsePage(blogPage, blogFileData);
+
+			page_content *currentContent = blogPage->content;
+			while (currentContent) {
+				if (currentContent->type == CONTENT_PARAGRAPH) {
+					// printf("Content: %s \n", currentContent->paragraph.str);
+				}
+
+				switch (currentContent->type) {
+					case CONTENT_PARAGRAPH: {
+						printf("Paragraph: ");
+						fkz (currentContent->paragraph.wordCount) {
+							printf("%s ", currentContent->paragraph.words[k].str);
+						}
+						printf("\n\n");
+					} break;
+					case CONTENT_HEADER: {
+						printf("Header: %s \n\n", currentContent->header.str);
+					} break;
+				}
+
+				currentContent = currentContent->next;
+			}
+
+			int x = 0;
+		}
+	}
+
+	fiz (pageList->count)
+	{
+		page *currentPage = &pageList->pages[i];
 
 		// TODO: Here we could use FindFile and post_name.* to get all images and choose one which might be eaiser
 		// Gen image paths
@@ -575,11 +854,11 @@ void Compile ()
 #endif
 	}
 
-	BubbleSortFilesLatestTop(&pageList);
+	BubbleSortFilesLatestTop(pageList);
 
-	fiz (pageList.count)
+	fiz (pageList->count)
 	{
-		page *p = &pageList.pages[i];
+		page *p = &pageList->pages[i];
 		if (p->DateString)
 		{
 			// printf("date %2i %2i %4i, sortkey 0x%8x %i \n", f->Date.Day, f->Date.Month, f->Date.Year, f->DateSortKey, f->DateSortKey);
@@ -603,16 +882,16 @@ void Compile ()
 
 	menu pageMenu = LoadMenuConfig();
 	char *styleFileData = ReadFileDataOrError("style.css");
-	char *TemplateFileData = ReadFileDataOrError("template.html");
+	// char *TemplateFileData = ReadFileDataOrError("template.html");
 
 	// printf("Tempalte file: %s \n", TemplateFileData);
 
 	mkdir("output");
 	mkdir("output/posts");
 
-	fiz (pageList.count)
+	fiz (pageList->count)
 	{
-		page *currentPage = &pageList.pages[i];
+		page *currentPage = &pageList->pages[i];
 
 		if (strcmp(currentPage->FileName, "template.html") != 0)
 		{
@@ -660,10 +939,10 @@ void Compile ()
 									ParsingBlogLoop = FALSE;
 									// printf("Blog loop: %s \n", BlogLoopData);
 
-									// fjz (pageList.count, BlogFilesIndex)
-									fjz (pageList.count)
+									// fjz (pageList->count, BlogFilesIndex)
+									fjz (pageList->count)
 									{
-										page *currentPost = &pageList.pages[j];
+										page *currentPost = &pageList->pages[j];
 
 										if (currentPost->Post)
 										{

@@ -61,3 +61,34 @@ void O_TemplateFooter (FILE *f)
 
 	fputs(str, f);
 }
+
+void O_Page (FILE *f, page *p)
+{
+	page_content *content = p->content;
+	while (content) {
+		/*char s[64];
+		sprintf(s, "%i\n", content->type);
+		fputs(s, f);*/
+
+		char *s = PushMemory(KiloBytes(10));
+		switch (content->type) {
+			case CONTENT_HEADER: {
+				sprintf(s, "%s<h1>%s</h1>\n", s, content->header.str);
+			} break;
+			case CONTENT_PARAGRAPH: {
+				sprintf(s, "%s<p>", s);
+				fiz (content->paragraph.wordCount) {
+					if (content->paragraph.words[i].type == PARAGRAPH_WORD_WORD) {
+						sprintf(s, "%s%s ", s, content->paragraph.words[i].str);
+					} else if (content->paragraph.words[i].type == PARAGRAPH_WORD_LINK) {
+						sprintf(s, "%s<a href=\"%s\">%s</a> ", s, content->paragraph.words[i].link.url, content->paragraph.words[i].link.str);
+					}
+				}
+				sprintf(s, "%s</p>\n", s);
+			} break;
+		}
+		fputs(s, f);
+
+		content = content->next;
+	}
+}

@@ -561,6 +561,22 @@ menu LoadMenuConfig ()
 	return m;
 }
 
+// TODO: Will this get slow with big pages? More importantly, will I ever have big pages?
+void AddContent (page *p, page_content *content)
+{
+	if (!p->content) {
+		p->content = content;
+	} else {
+		page_content *c = p->content;
+		while (c->next) {
+			c = c->next;
+		}
+		c->next = content;
+	}
+	/*content->next = p->content;
+	p->content = content;*/
+}
+
 void ParsePage (page *p, char *file)
 {
 	*p = {};
@@ -569,7 +585,7 @@ void ParsePage (page *p, char *file)
 	token t = GetContentToken(&tizer);
 
 	b32 firstHeaderUsed = false;
-	s32 contentCount = 0;
+	// s32 contentCount = 0;
 
 	while (t.type != TOKEN_END_OF_STREAM) {
 		page_content *content = (page_content*)PushMemory(sizeof(page_content));
@@ -581,56 +597,65 @@ void ParsePage (page *p, char *file)
 				content->type = CONTENT_SECONDARY_HEADER;
 				strcpy(content->header.str, t.str);
 
-				content->next = p->content;
-				p->content = content;
-				++contentCount;
+				AddContent(p, content);
 			} else {
 				// page_content *content = (page_content*)PushMemory(sizeof(page_content));
 				content->type = CONTENT_HEADER;
 				strcpy(content->header.str, t.str);
 				firstHeaderUsed = true;
 
-				content->next = p->content;
-				p->content = content;
-				++contentCount;
+				AddContent(p, content);
 			}
 		} else if (t.type == TOKEN_WORD) {
-			RestartLine(&tizer);
-
-			content->type = CONTENT_PARAGRAPH;
-
-			t = GetContentToken(&tizer);
-			while (t.type != TOKEN_NEWLINE) {
-				if (t.type == TOKEN_WORD) {
-					content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_WORD;
-					strcpy(content->paragraph.words[content->paragraph.wordCount].str, t.str);
-					++content->paragraph.wordCount;
-				} else if (t.type == TOKEN_OPEN_BRACKET) {
-					content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_LINK;
-					t = GetContentToken(&tizer);
-					if (t.type == TOKEN_WORD) {
-						strcpy(content->paragraph.words[content->paragraph.wordCount].link.url, t.str);
-						t = ReadUntilCloseBracket(&tizer);
-						strcpy(content->paragraph.words[content->paragraph.wordCount].link.str, t.str);
-						/*if (t.type == TOKEN_WORD) {
-							
-							t = GetContentToken(&tizer);
-						} else if (t.type == TOKEN_CLOSE_BRACKET) {
-							
-						}*/
-					}
-
-					++content->paragraph.wordCount;
-				}
+			if (strcmp(t.str, "title:") == 0) {
+				token value = ReadUntilNewLine(&tizer);
+				char *s = PushMemory(strlen(value.str) + 1);
+				strcpy(s, value.str);
+				p->Title = s;
+			} else if (strcmp(t.str, "desc:") == 0) {
+				token value = ReadUntilNewLine(&tizer);
+				char *s = PushMemory(strlen(value.str) + 1);
+				strcpy(s, value.str);
+				p->Title = s;
+			} else if (strcmp(t.str, "date:") == 0) {
+				
+			} else if (strcmp(t.str, "author:") == 0) {
+				
+			} else {
+				RestartLine(&tizer);
+				content->type = CONTENT_PARAGRAPH;
 
 				t = GetContentToken(&tizer);
-			}
-			
-			// strcpy(content->paragraph.str, t.str);
+				while (t.type != TOKEN_NEWLINE) {
+					if (t.type == TOKEN_WORD) {
+						content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_WORD;
+						strcpy(content->paragraph.words[content->paragraph.wordCount].str, t.str);
+						++content->paragraph.wordCount;
+					} else if (t.type == TOKEN_OPEN_BRACKET) {
+						content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_LINK;
+						t = GetContentToken(&tizer);
+						if (t.type == TOKEN_WORD) {
+							strcpy(content->paragraph.words[content->paragraph.wordCount].link.url, t.str);
+							t = ReadUntilCloseBracket(&tizer);
+							strcpy(content->paragraph.words[content->paragraph.wordCount].link.str, t.str);
+							/*if (t.type == TOKEN_WORD) {
+								
+								t = GetContentToken(&tizer);
+							} else if (t.type == TOKEN_CLOSE_BRACKET) {
+								
+							}*/
+						}
 
-			content->next = p->content;
-			p->content = content;
-			++contentCount;
+						++content->paragraph.wordCount;
+					}
+
+					t = GetContentToken(&tizer);
+				}
+				
+				// strcpy(content->paragraph.str, t.str);
+
+				AddContent(p, content);
+			}
 		}
 
 		t = GetContentToken(&tizer);
@@ -740,40 +765,38 @@ void Compile ()
 		}
 	}
 
-	{
-		// Test blog file parsing
-		file_list blogFiles = GetFileList("posts/*.blog");
-		fiz (blogFiles.count) {
-			char s[64];
-			sprintf(s, "posts/%s", blogFiles.files[i].name);
-			char *blogFileData = ReadFileDataOrError(s);
-			page *blogPage = (page*)PushMemory(sizeof(page));
-			ParsePage(blogPage, blogFileData);
+	// Test blog file parsing
+	page_list *blogList = (page_list*)PushMemory(sizeof(page_list));
+	file_list blogFiles = GetFileList("posts/*.blog");
+	fiz (blogFiles.count) {
+		page *blogPage = &blogList->pages[blogList->count];
 
-			page_content *currentContent = blogPage->content;
-			while (currentContent) {
-				if (currentContent->type == CONTENT_PARAGRAPH) {
-					// printf("Content: %s \n", currentContent->paragraph.str);
-				}
+		char s[64];
+		sprintf(s, "posts/%s", blogFiles.files[i].name);
+		char *blogFileData = ReadFileDataOrError(s);
+		// page *blogPage = (page*)PushMemory(sizeof(page));
+		ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
+		blogPage->FileName = blogFiles.files[i].name;
 
-				switch (currentContent->type) {
-					case CONTENT_PARAGRAPH: {
-						printf("Paragraph: ");
-						fkz (currentContent->paragraph.wordCount) {
-							printf("%s ", currentContent->paragraph.words[k].str);
-						}
-						printf("\n\n");
-					} break;
-					case CONTENT_HEADER: {
-						printf("Header: %s \n\n", currentContent->header.str);
-					} break;
-				}
-
-				currentContent = currentContent->next;
+		/*page_content *currentContent = blogPage->content;
+		while (currentContent) {
+			switch (currentContent->type) {
+				case CONTENT_PARAGRAPH: {
+					printf("Paragraph: ");
+					fkz (currentContent->paragraph.wordCount) {
+						printf("%s ", currentContent->paragraph.words[k].str);
+					}
+					printf("\n\n");
+				} break;
+				case CONTENT_HEADER: {
+					printf("Header: %s \n\n", currentContent->header.str);
+				} break;
 			}
 
-			int x = 0;
-		}
+			currentContent = currentContent->next;
+		}*/
+
+		++blogList->count;
 	}
 
 	fiz (pageList->count)
@@ -1024,6 +1047,26 @@ void Compile ()
 			}
 			fclose(OutputFileHandle);
 		}
+	}
+
+	fiz (blogList->count) {
+		page *currentPage = &blogList->pages[i];
+
+		char OutputFileName[64];
+		sprintf(OutputFileName, "output/test/%s\0", blogList->pages[i].FileName);
+		FILE *OutputFileHandle = fopen(OutputFileName, "w");
+
+		if (!OutputFileHandle)
+		{
+			// Error("Unable to open template file");
+			printf("FileError: %s \n", strerror(errno));
+		}
+
+		// O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
+		O_Page(OutputFileHandle, currentPage);
+		// O_TemplateFooter(OutputFileHandle);
+
+		fclose(OutputFileHandle);
 	}
 
 	printf("Memory used: %i/%i \n", MemoryUsed, MemorySize);

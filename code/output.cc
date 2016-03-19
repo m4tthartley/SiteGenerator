@@ -62,7 +62,7 @@ void O_TemplateFooter (FILE *f)
 	fputs(str, f);
 }
 
-void O_Page (FILE *f, page *p)
+void O_Page (FILE *f, page *p, page_list *blogList)
 {
 	page_content *content = p->content;
 	while (content) {
@@ -75,20 +75,73 @@ void O_Page (FILE *f, page *p)
 			case CONTENT_HEADER: {
 				sprintf(s, "%s<h1>%s</h1>\n", s, content->header.str);
 			} break;
+			case CONTENT_SECONDARY_HEADER: {
+				sprintf(s, "%s<h2>%s</h2>\n", s, content->header.str);
+			} break;
 			case CONTENT_PARAGRAPH: {
 				sprintf(s, "%s<p>", s);
 				fiz (content->paragraph.wordCount) {
 					if (content->paragraph.words[i].type == PARAGRAPH_WORD_WORD) {
-						sprintf(s, "%s%s ", s, content->paragraph.words[i].str);
+						if (content->paragraph.words[i].str[0] == '\\' && strlen(content->paragraph.words[i].str) == 1) {
+							sprintf(s, "%s<br>", s);
+						} else {
+							if (content->paragraph.words[i].noSpace) {
+								sprintf(s, "%s%s", s, content->paragraph.words[i].str);
+							} else {
+								sprintf(s, "%s %s", s, content->paragraph.words[i].str);
+							}
+						}
 					} else if (content->paragraph.words[i].type == PARAGRAPH_WORD_LINK) {
-						sprintf(s, "%s<a href=\"%s\">%s</a> ", s, content->paragraph.words[i].link.url, content->paragraph.words[i].link.str);
+						sprintf(s, "%s <a href=\"%s\">%s</a>", s, content->paragraph.words[i].link.url, content->paragraph.words[i].link.str);
 					}
 				}
 				sprintf(s, "%s</p>\n", s);
+			} break;
+			case CONTENT_IMAGE: {
+				sprintf(s, "%s<img src=\"/assets/%s\">\n<p class=\"caption\">%s</p>\n", s, content->image.fileName, content->image.caption);
+			} break;
+			case CONTENT_AUTHOR: {
+				sprintf(s, "%s<p class=\"author\">by %s on %s</p>\n", s, content->author.str, GetPrintDate(p));
+			} break;
+			case CONTENT_BLOG_LIST: {
+				fiz (blogList->count) {
+					page *p = &blogList->pages[i];
+
+					char *str = "%s"
+								"<div class=\"blog\">\n"
+								  "<div class=\"txt\">\n"
+								    "<h2><a href=\"%s\">%s</a></h2>"
+								    "<p>%s<br>%s</p>"
+								  "</div>"
+								  "<a href=\"%s\"><img src=\"/assets/%s\"></a>"
+								"</div>";
+					sprintf(s, str, s, p->FileName, p->Title, GetPrintDate(p), p->Desc, p->FileName, p->Image);
+				}
 			} break;
 		}
 		fputs(s, f);
 
 		content = content->next;
 	}
+}
+
+void O_BlogList (FILE *f, page_list *pageList)
+{
+	char *output = PushMemory(KiloBytes(10));
+
+	fiz (pageList->count) {
+		page *p = &pageList->pages[i];
+
+		char *str = "%s"
+					"<div class=\"blog\">\n"
+					  "<div class=\"txt\">\n"
+					    "<h2><a href=\"%s\">%s</a></h2>"
+					    "<p>%s<br>%s</p>"
+					  "</div>"
+					  "<a href=\"%s\"><img src=\"/assets/%s\"></a>"
+					"</div>";
+		sprintf(output, str, output, p->FileName, p->Title, GetPrintDate(p), p->Desc, p->FileName, p->Image);
+	}
+
+	fputs(output, f);
 }

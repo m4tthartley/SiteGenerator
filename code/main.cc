@@ -42,6 +42,8 @@ enum page_content_type {
 	CONTENT_SECONDARY_HEADER,
 	CONTENT_PARAGRAPH,
 	CONTENT_IMAGE,
+	CONTENT_AUTHOR,
+	CONTENT_BLOG_LIST,
 };
 
 enum paragraph_word_type {
@@ -66,6 +68,7 @@ struct page_content {
 						char str[64];
 					} link;
 				};
+				b32 noSpace;
 			} words[256];
 			s32 wordCount;
 		} paragraph;
@@ -73,6 +76,9 @@ struct page_content {
 			char fileName[64];
 			char caption[256];
 		} image;
+		struct {
+			char str[256];
+		} author;
 	};
 
 	page_content *next;
@@ -98,6 +104,30 @@ struct page_list {
 	page pages[256];
 	u32 count;
 };
+
+char *Months[] =
+{
+	"Zero",
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec",
+};
+
+char *GetPrintDate (page *post)
+{
+	char *Result = PushMemory(16);
+	sprintf(Result, "%i %s %i", post->Date.Day, Months[post->Date.Month], post->Date.Year);
+	return Result;
+}
 
 #include "output.cc"
 
@@ -161,30 +191,6 @@ void OutputChar (char Char, FILE *File)
 	return NumChars;
 }*/
 
-char *Months[] =
-{
-	"Zero",
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec",
-};
-
-char *GetPrintDate (page post)
-{
-	char *Result = PushMemory(16);
-	sprintf(Result, "%i %s %i", post.Date.Day, Months[post.Date.Month], post.Date.Year);
-	return Result;
-}
-
 void BubbleSortFilesLatestTop (page_list *pages)
 {
 	fori (pages->count, i0)
@@ -220,6 +226,8 @@ enum token_type {
 	TOKEN_CLOSE_BRACKET,
 	TOKEN_COMMENT,
 	TOKEN_WORD,
+	TOKEN_FILE,
+	TOKEN_BACKSLASH,
 };
 
 struct token {
@@ -406,16 +414,28 @@ token GetContentToken (tokenizer *tizer)
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
-	} else {
+	} /*else if (*tizer->strp == '\\') {
+		t.type = TOKEN_BACKSLASH;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	}*/ else {
 		t.type = TOKEN_WORD;
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
+		b32 dotFound = false;
 		while (*tizer->strp != ' ' &&
 			   *tizer->strp != '\t' &&
 			   *tizer->strp != '\n' &&
 			   *tizer->strp != '\r' &&
 			   *tizer->strp != 0) {
+			if (dotFound) {
+				t.type = TOKEN_FILE;
+			}
+			if (*tizer->strp == '.') {
+				dotFound = true;
+			}
 			t.str[charCount] = *tizer->strp;
 			++charCount;
 			if (*tizer->strp == '\n' || *tizer->strp == '\r') {
@@ -425,6 +445,18 @@ token GetContentToken (tokenizer *tizer)
 			}
 		}
 	}
+
+	/*else if (*tizer->strp == '.') {
+		t.type = TOKEN_DOT;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	} else if (*tizer->strp == ',') {
+		t.type = TOKEN_COMMA;
+		t.str[charCount] = *tizer->strp;
+		++charCount;
+		++tizer->strp;
+	}*/
 
 	return t;
 }
@@ -577,9 +609,90 @@ void AddContent (page *p, page_content *content)
 	p->content = content;*/
 }
 
+void ParsePageDate (page *p, char *str)
+{
+	tokenizer tizer = InitTokenizer(str);
+
+	b32 success = false;
+
+	token t = GetToken(&tizer);
+	if (t.type == TOKEN_NUMBER) {
+		p->Date.Day = strtol(t.str, NULL, 0);
+		t = GetToken(&tizer);
+		if (t.type == TOKEN_SLASH) {
+			t = GetToken(&tizer);
+			if (t.type == TOKEN_NUMBER) {
+				p->Date.Month = strtol(t.str, NULL, 0);
+				t = GetToken(&tizer);
+				if (t.type == TOKEN_SLASH) {
+					t = GetToken(&tizer);
+					if (t.type == TOKEN_NUMBER) {
+						p->Date.Year = strtol(t.str, NULL, 0);
+						success = true;
+					}
+				}
+			}
+		}
+	}
+
+	if (!success) {
+		printf("Error parsing date for file %s\n", p->FileName);
+	}
+
+	p->DateString = "Yes there is a date";
+	p->DateSortKey = ((u16)p->Date.Year << 16) | ((u8)p->Date.Month << 8) | ((u8)p->Date.Day);
+}
+
+void GenImagePath (page *p)
+{
+	b32 jpg = false;
+	{
+		char *tempImagePath = PushMemory(strlen("output/assets/posts/") + (strlen(p->FileName)-1) + 1);
+		sprintf(tempImagePath, "output/assets/posts/%s", p->FileName);
+		char *ext = tempImagePath + strlen(tempImagePath) - 4;
+		ext[0] = 'p';
+		ext[1] = 'n';
+		ext[2] = 'g';
+		ext[3] = 0;
+
+		DWORD fileAttributes = GetFileAttributes(tempImagePath);
+		if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
+			ext[0] = 'j';
+			ext[1] = 'p';
+			ext[2] = 'g';
+
+			fileAttributes = GetFileAttributes(tempImagePath);
+			if (fileAttributes != INVALID_FILE_ATTRIBUTES) {
+				jpg = true;
+			} else {
+				printf("Cannot find image file for %s \n", p->FileName);
+			}
+		}
+	}
+
+	p->Image = PushMemory(strlen("posts/") + (strlen(p->FileName)-1) + 1);
+	sprintf(p->Image, "posts/%s", p->FileName);
+	char *ext = p->Image + strlen(p->Image) - 4;
+	if (jpg) {
+		ext[0] = 'j';
+		ext[1] = 'p';
+		ext[2] = 'g';
+	} else {
+		ext[0] = 'p';
+		ext[1] = 'n';
+		ext[2] = 'g';
+	}
+	ext[3] = 0;
+}
+
 void ParsePage (page *p, char *file)
 {
-	*p = {};
+	// *p = {};
+
+	p->Url = PushMemory(strlen(p->FileName) + 2);
+	sprintf(p->Url, "/%s\0", p->FileName);
+
+	GenImagePath(p);
 
 	tokenizer tizer = InitTokenizer(file);
 	token t = GetContentToken(&tizer);
@@ -593,19 +706,17 @@ void ParsePage (page *p, char *file)
 			t = ReadUntilCloseSquareBracket(&tizer);
 
 			if (firstHeaderUsed) {
-				// page_content *content = (page_content*)PushMemory(sizeof(page_content));
 				content->type = CONTENT_SECONDARY_HEADER;
-				strcpy(content->header.str, t.str);
-
-				AddContent(p, content);
 			} else {
-				// page_content *content = (page_content*)PushMemory(sizeof(page_content));
 				content->type = CONTENT_HEADER;
-				strcpy(content->header.str, t.str);
 				firstHeaderUsed = true;
-
-				AddContent(p, content);
 			}
+
+			p->Title = PushMemory(strlen(t.str) + 1);
+			strcpy(p->Title, t.str);
+
+			strcpy(content->header.str, t.str);
+			AddContent(p, content);
 		} else if (t.type == TOKEN_WORD) {
 			if (strcmp(t.str, "title:") == 0) {
 				token value = ReadUntilNewLine(&tizer);
@@ -616,25 +727,43 @@ void ParsePage (page *p, char *file)
 				token value = ReadUntilNewLine(&tizer);
 				char *s = PushMemory(strlen(value.str) + 1);
 				strcpy(s, value.str);
-				p->Title = s;
+				p->Desc = s;
 			} else if (strcmp(t.str, "date:") == 0) {
-				
+				token value = ReadUntilNewLine(&tizer);
+				ParsePageDate(p, value.str);
 			} else if (strcmp(t.str, "author:") == 0) {
-				
+				token value = ReadUntilNewLine(&tizer);
+				content->type = CONTENT_AUTHOR;
+				strcpy(content->author.str, value.str);
+				AddContent(p, content);
+			} else if (strcmp(t.str, "!image") == 0) {
+				content->type = CONTENT_IMAGE;
+				strcpy(content->image.fileName, p->Image);
+				AddContent(p, content);
+			} else if (strcmp(t.str, "!blog") == 0) {
+				content->type = CONTENT_BLOG_LIST;
+				AddContent(p, content);
 			} else {
+				/*TODO: New idea for parapraph parsing,
+						ReadUntilOpenBracket and save section,
+						parse link and save, ReadUntilOpenBracket and save section etc*/
+
 				RestartLine(&tizer);
 				content->type = CONTENT_PARAGRAPH;
 
 				t = GetContentToken(&tizer);
-				while (t.type != TOKEN_NEWLINE) {
-					if (t.type == TOKEN_WORD) {
+				while (t.type != TOKEN_NEWLINE && t.type != TOKEN_END_OF_STREAM) {
+					if (t.type == TOKEN_WORD || t.type == TOKEN_FILE) {
+						if (t.str[0] == '.' || t.str[0] == ',') {
+							content->paragraph.words[content->paragraph.wordCount].noSpace = true;
+						}
 						content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_WORD;
 						strcpy(content->paragraph.words[content->paragraph.wordCount].str, t.str);
 						++content->paragraph.wordCount;
 					} else if (t.type == TOKEN_OPEN_BRACKET) {
 						content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_WORD_LINK;
 						t = GetContentToken(&tizer);
-						if (t.type == TOKEN_WORD) {
+						if (t.type == TOKEN_FILE) {
 							strcpy(content->paragraph.words[content->paragraph.wordCount].link.url, t.str);
 							t = ReadUntilCloseBracket(&tizer);
 							strcpy(content->paragraph.words[content->paragraph.wordCount].link.str, t.str);
@@ -647,6 +776,8 @@ void ParsePage (page *p, char *file)
 						}
 
 						++content->paragraph.wordCount;
+					} else if (t.type == TOKEN_BACKSLASH) {
+						GetContentToken(&tizer);
 					}
 
 					t = GetContentToken(&tizer);
@@ -656,6 +787,14 @@ void ParsePage (page *p, char *file)
 
 				AddContent(p, content);
 			}
+		} else if (t.type == TOKEN_FILE) {
+			content->type = CONTENT_IMAGE;
+			strcpy(content->image.fileName, t.str);
+			t = ReadUntilNewLine(&tizer);
+			strcpy(content->image.caption, t.str);
+			AddContent(p, content);
+		} else if (t.type == TOKEN_COMMENT) {
+			ReadUntilNewLine(&tizer);
 		}
 
 		t = GetContentToken(&tizer);
@@ -668,8 +807,7 @@ void Compile ()
 
 	printf("Compiling... \n");
 
-	page_list *pageList = (page_list*)PushMemory(sizeof(page_list));
-
+#if 0
 	{
 		file_list pageFiles = GetFileList("*.html");
 		fiz (pageFiles.count) {
@@ -764,8 +902,9 @@ void Compile ()
 			++pageList->count;
 		}
 	}
+#endif
 
-	// Test blog file parsing
+
 	page_list *blogList = (page_list*)PushMemory(sizeof(page_list));
 	file_list blogFiles = GetFileList("posts/*.blog");
 	fiz (blogFiles.count) {
@@ -775,30 +914,31 @@ void Compile ()
 		sprintf(s, "posts/%s", blogFiles.files[i].name);
 		char *blogFileData = ReadFileDataOrError(s);
 		// page *blogPage = (page*)PushMemory(sizeof(page));
-		ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
 		blogPage->FileName = blogFiles.files[i].name;
-
-		/*page_content *currentContent = blogPage->content;
-		while (currentContent) {
-			switch (currentContent->type) {
-				case CONTENT_PARAGRAPH: {
-					printf("Paragraph: ");
-					fkz (currentContent->paragraph.wordCount) {
-						printf("%s ", currentContent->paragraph.words[k].str);
-					}
-					printf("\n\n");
-				} break;
-				case CONTENT_HEADER: {
-					printf("Header: %s \n\n", currentContent->header.str);
-				} break;
-			}
-
-			currentContent = currentContent->next;
-		}*/
+		ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
+		blogPage->Post = true;
 
 		++blogList->count;
 	}
 
+	BubbleSortFilesLatestTop(blogList);
+
+	page_list *pageList = (page_list*)PushMemory(sizeof(page_list));
+	file_list pageFiles = GetFileList("*.page");
+	fiz (pageFiles.count) {
+		page *p = &pageList->pages[pageList->count];
+
+		char s[64];
+		sprintf(s, "%s", pageFiles.files[i].name);
+		char *pageFileData = ReadFileDataOrError(s);
+		
+		p->FileName = pageFiles.files[i].name;
+		ParsePage(p, pageFileData); // NOTE: ParsePage zeros the structure
+
+		++pageList->count;
+	}
+
+#if 0
 	fiz (pageList->count)
 	{
 		page *currentPage = &pageList->pages[i];
@@ -846,72 +986,23 @@ void Compile ()
 			ext[2] = 'g';
 		}
 		ext[3] = 0;
-
-
-
-#if 0
-		// Gen dates
-		file *f = &FileList.Files[i];
-		if (f->DateString)
-		{
-			if (StringChars(f->DateString, '/') == 2)
-			{
-				// strchr(f->DateString, '/')
-				char *NewP;
-				s32 Day = strtol(f->DateString, &NewP, 0);
-				++NewP;
-				s32 Month = strtol(NewP, &NewP, 0);
-				++NewP;
-				s32 Year = strtol(NewP, &NewP, 0);
-
-				f->Date.Day = Day;
-				f->Date.Month = Month;
-				f->Date.Year = Year;
-
-				f->DateSortKey = ((u16)Year << 16) | ((u8)Month << 8) | ((u8)Day);
-				// printf("date %2i %2i %4i, sortkey 0x%8x %i \n", f->Date.Day, f->Date.Month, f->Date.Year, f->DateSortKey, f->DateSortKey);
-
-				int x = 0;
-			}
-		}
-#endif
 	}
+#endif
 
-	BubbleSortFilesLatestTop(pageList);
-
-	fiz (pageList->count)
-	{
+	fiz (pageList->count) {
 		page *p = &pageList->pages[i];
-		if (p->DateString)
-		{
+		if (p->DateString) {
 			// printf("date %2i %2i %4i, sortkey 0x%8x %i \n", f->Date.Day, f->Date.Month, f->Date.Year, f->DateSortKey, f->DateSortKey);
 		}
 	}
 
-	// FILE *TemplateFileHandle = fopen("template.html", "r");
-	// if (!TemplateFileHandle)
-	// {
-	// 	Error("Unable to open template file");
-	// 	printf(strerror(errno));
-	// }
-
-	// fseek(TemplateFileHandle, 0, SEEK_END);
-	// u32 TemplateFileSize = ftell(TemplateFileHandle);
-	// fseek(TemplateFileHandle, 0, SEEK_SET);
-
-	// char *TemplateFileData = PushMemory(TemplateFileSize + 1);
-	// fread(TemplateFileData, sizeof(char), TemplateFileSize, TemplateFileHandle);
-	// fclose(TemplateFileHandle);
-
 	menu pageMenu = LoadMenuConfig();
 	char *styleFileData = ReadFileDataOrError("style.css");
-	// char *TemplateFileData = ReadFileDataOrError("template.html");
-
-	// printf("Tempalte file: %s \n", TemplateFileData);
 
 	mkdir("output");
 	mkdir("output/posts");
 
+#if 0
 	fiz (pageList->count)
 	{
 		page *currentPage = &pageList->pages[i];
@@ -922,138 +1013,137 @@ void Compile ()
 
 			char *OutputFileName = PushMemory(strlen(currentPage->FileName) + strlen("output/") + 1);
 			sprintf(OutputFileName, "output/%s\0", currentPage->FileName);
-			// printf("Output file: %s \n", OutputFileName);
-
 
 			FILE *OutputFileHandle = fopen(OutputFileName, "w");
-			if (!OutputFileHandle)
-			{
-				// Error("Unable to open template file");
+			if (!OutputFileHandle) {
 				printf("FileError: %s \n", strerror(errno));
 			}
 
-			// u32 TemplateFileSize = strlen(TemplateFileData);
-			// fori(TemplateFileSize, TemplateFileIndex)
+			O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
+
+			Assert(OutputFileHandle);
+
+			u32 FileDataSize = strlen(FileData);
+			fori(FileDataSize, FileIndex)
 			{
-				O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
-
-				Assert(OutputFileHandle);
-				// Assert(TemplateFileData[TemplateFileIndex]);
-
-				// if (FirstPartOfStrEquals(&TemplateFileData[TemplateFileIndex], "{content}"))
+				if (FirstPartOfStrEquals(&FileData[FileIndex], "{blog}"))
 				{
-					u32 FileDataSize = strlen(FileData);
-					fori(FileDataSize, FileIndex)
+					FileIndex += 6;
+					b32 ParsingBlogLoop = TRUE;
+					s32 ParseIndex = 0;
+					while (ParsingBlogLoop)
 					{
-						if (FirstPartOfStrEquals(&FileData[FileIndex], "{blog}"))
+						if (FirstPartOfStrEquals(&FileData[FileIndex+ParseIndex], "{endblog}"))
 						{
-							FileIndex += 6;
-							b32 ParsingBlogLoop = TRUE;
-							s32 ParseIndex = 0;
-							while (ParsingBlogLoop)
+							FileData[FileIndex + ParseIndex] = 0;
+							char *BlogLoopData = PushMemory(ParseIndex + 1);
+							strcpy(BlogLoopData, FileData + FileIndex);
+							*(BlogLoopData + ParseIndex) = 0;
+							FileIndex += ParseIndex + 9;
+							ParsingBlogLoop = FALSE;
+
+							fjz (pageList->count)
 							{
-								if (FirstPartOfStrEquals(&FileData[FileIndex+ParseIndex], "{endblog}"))
+								page *currentPost = &pageList->pages[j];
+
+								if (currentPost->Post)
 								{
-									FileData[FileIndex + ParseIndex] = 0;
-									char *BlogLoopData = PushMemory(ParseIndex + 1);
-									strcpy(BlogLoopData, FileData + FileIndex);
-									*(BlogLoopData + ParseIndex) = 0;
-									FileIndex += ParseIndex + 9;
-									ParsingBlogLoop = FALSE;
-									// printf("Blog loop: %s \n", BlogLoopData);
-
-									// fjz (pageList->count, BlogFilesIndex)
-									fjz (pageList->count)
+									fori(strlen(BlogLoopData), BlogLoopIndex)
 									{
-										page *currentPost = &pageList->pages[j];
-
-										if (currentPost->Post)
+										// Title
+										if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{title}"))
 										{
-											fori(strlen(BlogLoopData), BlogLoopIndex)
+											if (currentPost->Title)
 											{
-												// Title
-												if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{title}"))
-												{
-													if (currentPost->Title)
-													{
-														fputs(currentPost->Title, OutputFileHandle);
-													}
-													BlogLoopIndex += 7;
-												}
-												// Desc
-												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{desc}"))
-												{
-													if (currentPost->Desc)
-													{
-														fputs(currentPost->Desc, OutputFileHandle);
-													}
-													BlogLoopIndex += 6;
-												}
-												// Date
-												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{date}"))
-												{
-													if (currentPost->DateString)
-													{
-														// fputs(FileList.Files[BlogFilesIndex].DateString, OutputFileHandle);
-														fputs(GetPrintDate(*currentPost), OutputFileHandle);
-													}
-													BlogLoopIndex += 6;
-												}
-												// Url
-												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{url}"))
-												{
-													if (currentPost->Url)
-													{
-														fputs(currentPost->Url, OutputFileHandle);
-													}
-													BlogLoopIndex += 5;
-												}
-												// Image
-												else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{image}"))
-												{
-													if (currentPost->Image)
-													{
-														fputs(currentPost->Image, OutputFileHandle);
-													}
-													BlogLoopIndex += 7;
-												}
-												else
-												{
-
-												}
-
-												OutputChar(BlogLoopData[BlogLoopIndex], OutputFileHandle);
+												fputs(currentPost->Title, OutputFileHandle);
 											}
+											BlogLoopIndex += 7;
 										}
+										// Desc
+										else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{desc}"))
+										{
+											if (currentPost->Desc)
+											{
+												fputs(currentPost->Desc, OutputFileHandle);
+											}
+											BlogLoopIndex += 6;
+										}
+										// Date
+										else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{date}"))
+										{
+											if (currentPost->DateString)
+											{
+												// fputs(FileList.Files[BlogFilesIndex].DateString, OutputFileHandle);
+												fputs(GetPrintDate(currentPost), OutputFileHandle);
+											}
+											BlogLoopIndex += 6;
+										}
+										// Url
+										else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{url}"))
+										{
+											if (currentPost->Url)
+											{
+												fputs(currentPost->Url, OutputFileHandle);
+											}
+											BlogLoopIndex += 5;
+										}
+										// Image
+										else if (FirstPartOfStrEquals(&BlogLoopData[BlogLoopIndex], "{image}"))
+										{
+											if (currentPost->Image)
+											{
+												fputs(currentPost->Image, OutputFileHandle);
+											}
+											BlogLoopIndex += 7;
+										}
+										else
+										{
+
+										}
+
+										OutputChar(BlogLoopData[BlogLoopIndex], OutputFileHandle);
 									}
 								}
-
-								++ParseIndex;
 							}
 						}
 
-						if (FileData[FileIndex])
-						{
-							OutputChar(FileData[FileIndex], OutputFileHandle);
-						}
+						++ParseIndex;
 					}
-
-					// TemplateFileIndex += 9;
 				}
 
-				// OutputChar(TemplateFileData[TemplateFileIndex], OutputFileHandle);
-
-				O_TemplateFooter(OutputFileHandle);
+				if (FileData[FileIndex])
+				{
+					OutputChar(FileData[FileIndex], OutputFileHandle);
+				}
 			}
+
+			O_TemplateFooter(OutputFileHandle);
+
 			fclose(OutputFileHandle);
 		}
 	}
+#endif
 
 	fiz (blogList->count) {
 		page *currentPage = &blogList->pages[i];
 
 		char OutputFileName[64];
-		sprintf(OutputFileName, "output/test/%s\0", blogList->pages[i].FileName);
+
+		s32 len = strlen(blogList->pages[i].FileName);
+		fjz (len) {
+			if (blogList->pages[i].FileName[len-1-j] == '.') {
+				blogList->pages[i].FileName[len-1-j] = 0;
+				break;
+			} else {
+				blogList->pages[i].FileName[len-1-j] = 0;
+			}
+		}
+
+		if (currentPage->Post) {
+			sprintf(OutputFileName, "output/posts/%s.html\0", blogList->pages[i].FileName);
+		} else {
+			sprintf(OutputFileName, "output/%s.html\0", blogList->pages[i].FileName);
+		}
 		FILE *OutputFileHandle = fopen(OutputFileName, "w");
 
 		if (!OutputFileHandle)
@@ -1062,9 +1152,46 @@ void Compile ()
 			printf("FileError: %s \n", strerror(errno));
 		}
 
-		// O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
-		O_Page(OutputFileHandle, currentPage);
-		// O_TemplateFooter(OutputFileHandle);
+		O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
+		O_Page(OutputFileHandle, currentPage, blogList);
+		// O_BlogList(OutputFileHandle, blogList);
+		O_TemplateFooter(OutputFileHandle);
+
+		fclose(OutputFileHandle);
+	}
+
+	fiz (pageList->count) {
+		page *currentPage = &pageList->pages[i];
+
+		char OutputFileName[64];
+
+		s32 len = strlen(currentPage->FileName);
+		fjz (len) {
+			if (currentPage->FileName[len-1-j] == '.') {
+				currentPage->FileName[len-1-j] = 0;
+				break;
+			} else {
+				currentPage->FileName[len-1-j] = 0;
+			}
+		}
+
+		if (currentPage->Post) {
+			sprintf(OutputFileName, "output/posts/%s.html\0", currentPage->FileName);
+		} else {
+			sprintf(OutputFileName, "output/%s.html\0", currentPage->FileName);
+		}
+		FILE *OutputFileHandle = fopen(OutputFileName, "w");
+
+		if (!OutputFileHandle)
+		{
+			// Error("Unable to open template file");
+			printf("FileError: %s \n", strerror(errno));
+		}
+
+		O_TemplateHeader(OutputFileHandle, &pageMenu, styleFileData, currentPage);
+		O_Page(OutputFileHandle, currentPage, blogList);
+		// O_BlogList(OutputFileHandle, blogList);
+		O_TemplateFooter(OutputFileHandle);
 
 		fclose(OutputFileHandle);
 	}
@@ -1081,18 +1208,19 @@ int main ()
 	/*file_list fl0 = GetFileList("*.html");
 	file_list fl1 = GetFileList("posts/*.html");
 	file_list masterFileList = ConcatFileList(fl0, fl1);*/
-	file_list fl0 = GetFileList("*.html");
+
+	/*file_list fl0 = GetFileList("*.html");
 	file_list fl1 = GetFileList("posts/*.html");
 	file_list fl2 = GetFileList("*.cfg");
 	file_list fl3 = GetFileList("*.css");
 	file_list fileList0 = ConcatFileList(fl0, fl1);
 	file_list fileList1 = ConcatFileList(fl2, fl3);
-	file_list masterFileList = ConcatFileList(fileList0, fileList1);
+	file_list masterFileList = ConcatFileList(fileList0, fileList1);*/
+	file_list masterFileList = {};
 
-	while (TRUE)
-	{
-		file_list fl0 = GetFileList("*.html");
-		file_list fl1 = GetFileList("posts/*.html");
+	do {
+		file_list fl0 = GetFileList("*.page");
+		file_list fl1 = GetFileList("posts/*.blog");
 		file_list fl2 = GetFileList("*.cfg");
 		file_list fl3 = GetFileList("*.css");
 		file_list fileList0 = ConcatFileList(fl0, fl1);
@@ -1118,7 +1246,7 @@ int main ()
 		}
 
 		Sleep(1000);
-	}
+	} while (true);
 
 	system("pause");
 	return 0;

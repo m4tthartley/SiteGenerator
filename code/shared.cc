@@ -62,8 +62,17 @@ void Error (char *Msg)
 	printf("Critical Error: %s \n", Msg);
 }
 
+LARGE_INTEGER GetPerformanceFrequency ()
+{
+	LARGE_INTEGER freq;
+	QueryPerformanceFrequency(&freq);
+	return freq;
+}
+
+LARGE_INTEGER globalPerformanceFrequency = GetPerformanceFrequency();
+
 char *Memory;
-u32 MemorySize = MegaBytes(1024);
+u32 MemorySize = MegaBytes(100);
 u32 MemoryUsed = 0;
 
 char *PushMemory (u32 Size)
@@ -224,6 +233,59 @@ file_list ConcatFileList (file_list fl0, file_list fl1)
 		strcpy(fileList.files[fileList.count].name, fl1.files[i].name);
 		fileList.files[fileList.count].writeTime = fl1.files[i].writeTime;
 		++fileList.count;
+	}
+
+	return fileList;
+}
+
+struct perf_t {
+	u64 time;
+};
+
+perf_t GetPerfTime ()
+{
+	perf_t perf = {};
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
+
+	perf.time = time.QuadPart;
+	return perf;
+}
+
+float SecondsElapsed (perf_t perf)
+{
+	perf_t newPerf = GetPerfTime();
+	float diff = (float)(newPerf.time - perf.time);
+	float seconds = diff / (float)globalPerformanceFrequency.QuadPart;
+	return seconds;
+}
+
+void TestRecursiveFileList ()
+{
+	file_list fileList = {0};
+
+	WIN32_FIND_DATAA FindData;
+	HANDLE FileHandle = FindFirstFileA("*", &FindData);
+	if (FileHandle != INVALID_HANDLE_VALUE)
+	{
+		while (TRUE)
+		{
+			strcpy(fileList.files[fileList.count].name, FindData.cFileName);
+			fileList.files[fileList.count].writeTime = FindData.ftLastWriteTime;
+			++fileList.count;
+
+			// DWORD fileAttributes = GetFileAttributes(FindData.cFileName);
+			if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				int x = 0;
+			}
+
+			if (!FindNextFileA(FileHandle, &FindData))
+			{
+				break;
+			}
+		}
+
+		FindClose(FileHandle);
 	}
 
 	return fileList;

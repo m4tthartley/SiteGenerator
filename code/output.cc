@@ -82,17 +82,15 @@ void O_Page (FILE *f, page *p, page_list *blogList)
 				sprintf(s, "%s<p>", s);
 				fiz (content->paragraph.wordCount) {
 					if (content->paragraph.words[i].type == PARAGRAPH_WORD_WORD) {
-						if (content->paragraph.words[i].str[0] == '\\' && strlen(content->paragraph.words[i].str) == 1) {
-							sprintf(s, "%s<br>", s);
+						if (content->paragraph.words[i].noSpace) {
+							sprintf(s, "%s%s", s, content->paragraph.words[i].str);
 						} else {
-							if (content->paragraph.words[i].noSpace) {
-								sprintf(s, "%s%s", s, content->paragraph.words[i].str);
-							} else {
-								sprintf(s, "%s %s", s, content->paragraph.words[i].str);
-							}
+							sprintf(s, "%s %s", s, content->paragraph.words[i].str);
 						}
 					} else if (content->paragraph.words[i].type == PARAGRAPH_WORD_LINK) {
 						sprintf(s, "%s <a href=\"%s\">%s</a>", s, content->paragraph.words[i].link.url, content->paragraph.words[i].link.str);
+					} else if (content->paragraph.words[i].type == PARAGRAPH_LINE_BREAK) {
+						sprintf(s, "%s<br>", s);
 					}
 				}
 				sprintf(s, "%s</p>\n", s);
@@ -115,7 +113,7 @@ void O_Page (FILE *f, page *p, page_list *blogList)
 								  "</div>"
 								  "<a href=\"%s\"><img src=\"/assets/%s\"></a>"
 								"</div>";
-					sprintf(s, str, s, p->FileName, p->Title, GetPrintDate(p), p->Desc, p->FileName, p->Image);
+					sprintf(s, str, s, p->Url, p->Title, GetPrintDate(p), p->Desc, p->Url, p->Image);
 				}
 			} break;
 		}
@@ -135,10 +133,10 @@ void O_BlogList (FILE *f, page_list *pageList)
 		char *str = "%s"
 					"<div class=\"blog\">\n"
 					  "<div class=\"txt\">\n"
-					    "<h2><a href=\"%s\">%s</a></h2>"
+					    "<h2><a href=\"%s.html\">%s</a></h2>"
 					    "<p>%s<br>%s</p>"
 					  "</div>"
-					  "<a href=\"%s\"><img src=\"/assets/%s\"></a>"
+					  "<a href=\"%s.html\"><img src=\"/assets/%s\"></a>"
 					"</div>";
 		sprintf(output, str, output, p->FileName, p->Title, GetPrintDate(p), p->Desc, p->FileName, p->Image);
 	}

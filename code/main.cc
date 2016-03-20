@@ -1,8 +1,8 @@
 
 /*
 	TODO:
-	Blog post sorting
-	Convert dates to nice print format
+	  Generate different sized images and try that srcset thing
+	  How should footers work?
 */
 
 /*
@@ -49,6 +49,7 @@ enum page_content_type {
 enum paragraph_word_type {
 	PARAGRAPH_WORD_WORD,
 	PARAGRAPH_WORD_LINK,
+	PARAGRAPH_LINE_BREAK,
 };
 
 struct page_content {
@@ -414,12 +415,12 @@ token GetContentToken (tokenizer *tizer)
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
-	} /*else if (*tizer->strp == '\\') {
+	} else if (*tizer->strp == '\\') {
 		t.type = TOKEN_BACKSLASH;
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
-	}*/ else {
+	} else {
 		t.type = TOKEN_WORD;
 		t.str[charCount] = *tizer->strp;
 		++charCount;
@@ -476,13 +477,13 @@ token ReadUntilNewLine (tokenizer *tizer)
 		++tizer->strp;
 	}
 
-	++tizer->strp;
-	tizer->currentLine = tizer->strp;
+	// ++tizer->strp;
+	tizer->currentLine = tizer->strp + 1;
 
 	return t;
 }
 
-token ReadUntilColon (tokenizer *tizer)
+token ReadUntilColon (tokenizer *tizer, b32 *found)
 {
 	token t = {};
 	s32 charCount = 0;
@@ -491,10 +492,16 @@ token ReadUntilColon (tokenizer *tizer)
 		++tizer->strp;
 	}
 
-	while (*tizer->strp != ':' && *tizer->strp != 0) {
+	while (*tizer->strp != ':' && *tizer->strp != '\n' && *tizer->strp != '\r' && *tizer->strp != 0) {
 		t.str[charCount] = *tizer->strp;
 		++charCount;
 		++tizer->strp;
+	}
+
+	if (*tizer->strp == ':') {
+		*found = true;
+	} else {
+		*found = false;
 	}
 
 	++tizer->strp;
@@ -568,14 +575,24 @@ menu LoadMenuConfig ()
 	menu m = {};
 	tokenizer tizer = InitTokenizer(MenuConfig.Data);
 
-	token t = ReadUntilColon(&tizer);
-	while (strlen(t.str)) {
-		strcpy(m.items[m.count].name, t.str);
-		t = ReadUntilNewLine(&tizer);
-		strcpy(m.items[m.count].dest, t.str);
-		++m.count;
+	token t = GetContentToken(&tizer);
+	while (t.type != TOKEN_END_OF_STREAM) {
+		if (t.type == TOKEN_WORD) {
+			RestartLine(&tizer);
+			b32 found;
+			t = ReadUntilColon(&tizer, &found);
+			if (found) {
+				strcpy(m.items[m.count].name, t.str);
+				t = ReadUntilNewLine(&tizer);
+				strcpy(m.items[m.count].dest, t.str);
+			} else {
+				printf("Error parsing menu config \n");
+			}
 
-		t = ReadUntilColon(&tizer);
+			++m.count;
+		}
+
+		t = GetContentToken(&tizer);
 	}
 
 	int x = 0;
@@ -645,21 +662,26 @@ void ParsePageDate (page *p, char *str)
 
 void GenImagePath (page *p)
 {
+	s32 extLen = 4;
+
 	b32 jpg = false;
 	{
-		char *tempImagePath = PushMemory(strlen("output/assets/posts/") + (strlen(p->FileName)-1) + 1);
+		s32 tempImageLen = strlen("output/assets/posts/") + (strlen(p->FileName)) + 1 + extLen;
+		char *tempImagePath = PushMemory(tempImageLen);
 		sprintf(tempImagePath, "output/assets/posts/%s", p->FileName);
-		char *ext = tempImagePath + strlen(tempImagePath) - 4;
-		ext[0] = 'p';
-		ext[1] = 'n';
-		ext[2] = 'g';
-		ext[3] = 0;
+		s32 actualLen = strlen(tempImagePath);
+		char *ext = tempImagePath + strlen(tempImagePath);
+		ext[0] = '.';
+		ext[1] = 'p';
+		ext[2] = 'n';
+		ext[3] = 'g';
 
 		DWORD fileAttributes = GetFileAttributes(tempImagePath);
 		if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
-			ext[0] = 'j';
-			ext[1] = 'p';
-			ext[2] = 'g';
+			ext[0] = '.';
+			ext[1] = 'j';
+			ext[2] = 'p';
+			ext[3] = 'g';
 
 			fileAttributes = GetFileAttributes(tempImagePath);
 			if (fileAttributes != INVALID_FILE_ATTRIBUTES) {
@@ -670,29 +692,45 @@ void GenImagePath (page *p)
 		}
 	}
 
-	p->Image = PushMemory(strlen("posts/") + (strlen(p->FileName)-1) + 1);
+	p->Image = PushMemory(strlen("posts/") + (strlen(p->FileName)) + 1 + extLen);
 	sprintf(p->Image, "posts/%s", p->FileName);
-	char *ext = p->Image + strlen(p->Image) - 4;
+	char *ext = p->Image + strlen(p->Image);
 	if (jpg) {
-		ext[0] = 'j';
-		ext[1] = 'p';
-		ext[2] = 'g';
+		ext[0] = '.';
+		ext[1] = 'j';
+		ext[2] = 'p';
+		ext[3] = 'g';
 	} else {
-		ext[0] = 'p';
-		ext[1] = 'n';
-		ext[2] = 'g';
+		ext[0] = '.';
+		ext[1] = 'p';
+		ext[2] = 'n';
+		ext[3] = 'g';
 	}
-	ext[3] = 0;
 }
 
 void ParsePage (page *p, char *file)
 {
 	// *p = {};
 
-	p->Url = PushMemory(strlen(p->FileName) + 2);
-	sprintf(p->Url, "/%s\0", p->FileName);
+	s32 len = strlen(p->FileName);
+	fjz (len) {
+		if (p->FileName[len-1-j] == '.') {
+			p->FileName[len-1-j] = 0;
+			break;
+		} else {
+			p->FileName[len-1-j] = 0;
+		}
+	}
 
-	GenImagePath(p);
+	if (p->Post) {
+		p->Url = PushMemory(strlen(p->FileName) + strlen("/posts/") + strlen(".html") + 1);
+		sprintf(p->Url, "/posts/%s.html", p->FileName);
+
+		GenImagePath(p);
+	} else {
+		p->Url = PushMemory(strlen(p->FileName) + strlen("/") + strlen(".html") + 1);
+		sprintf(p->Url, "/%s.html", p->FileName);
+	}
 
 	tokenizer tizer = InitTokenizer(file);
 	token t = GetContentToken(&tizer);
@@ -777,7 +815,12 @@ void ParsePage (page *p, char *file)
 
 						++content->paragraph.wordCount;
 					} else if (t.type == TOKEN_BACKSLASH) {
-						GetContentToken(&tizer);
+						t = GetContentToken(&tizer);
+						if (t.type == TOKEN_NEWLINE) {
+							content->paragraph.words[content->paragraph.wordCount].type = PARAGRAPH_LINE_BREAK;
+							// AddContent(p, content);
+							++content->paragraph.wordCount;
+						}
 					}
 
 					t = GetContentToken(&tizer);
@@ -803,9 +846,11 @@ void ParsePage (page *p, char *file)
 
 void Compile ()
 {
-	ClearMemory();
+	perf_t perfStartTime = GetPerfTime();
 
-	printf("Compiling... \n");
+	printf("\nCompiling... \n");
+
+	ClearMemory();
 
 #if 0
 	{
@@ -915,8 +960,8 @@ void Compile ()
 		char *blogFileData = ReadFileDataOrError(s);
 		// page *blogPage = (page*)PushMemory(sizeof(page));
 		blogPage->FileName = blogFiles.files[i].name;
-		ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
 		blogPage->Post = true;
+		ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
 
 		++blogList->count;
 	}
@@ -1129,16 +1174,6 @@ void Compile ()
 
 		char OutputFileName[64];
 
-		s32 len = strlen(blogList->pages[i].FileName);
-		fjz (len) {
-			if (blogList->pages[i].FileName[len-1-j] == '.') {
-				blogList->pages[i].FileName[len-1-j] = 0;
-				break;
-			} else {
-				blogList->pages[i].FileName[len-1-j] = 0;
-			}
-		}
-
 		if (currentPage->Post) {
 			sprintf(OutputFileName, "output/posts/%s.html\0", blogList->pages[i].FileName);
 		} else {
@@ -1165,16 +1200,6 @@ void Compile ()
 
 		char OutputFileName[64];
 
-		s32 len = strlen(currentPage->FileName);
-		fjz (len) {
-			if (currentPage->FileName[len-1-j] == '.') {
-				currentPage->FileName[len-1-j] = 0;
-				break;
-			} else {
-				currentPage->FileName[len-1-j] = 0;
-			}
-		}
-
 		if (currentPage->Post) {
 			sprintf(OutputFileName, "output/posts/%s.html\0", currentPage->FileName);
 		} else {
@@ -1196,26 +1221,21 @@ void Compile ()
 		fclose(OutputFileHandle);
 	}
 
-	printf("Memory used: %i/%i \n", MemoryUsed, MemorySize);
+
+	float compileTime = SecondsElapsed(perfStartTime);
+
+	float fMemoryUsed = (float)(MemoryUsed / KiloBytes(1));
+	float fMemorySize = (float)(MemorySize / KiloBytes(1));
+	float memoryPercentage = (fMemoryUsed / fMemorySize) * 100.0f;
+	printf("Finished in %.3fs, memory %ikb %i%% \n", compileTime, MemoryUsed / KiloBytes(1), (s32)memoryPercentage);
 }
 
 int main ()
 {
+	TestRecursiveFileList();
+
 	InitMemory();
 
-	Compile();
-
-	/*file_list fl0 = GetFileList("*.html");
-	file_list fl1 = GetFileList("posts/*.html");
-	file_list masterFileList = ConcatFileList(fl0, fl1);*/
-
-	/*file_list fl0 = GetFileList("*.html");
-	file_list fl1 = GetFileList("posts/*.html");
-	file_list fl2 = GetFileList("*.cfg");
-	file_list fl3 = GetFileList("*.css");
-	file_list fileList0 = ConcatFileList(fl0, fl1);
-	file_list fileList1 = ConcatFileList(fl2, fl3);
-	file_list masterFileList = ConcatFileList(fileList0, fileList1);*/
 	file_list masterFileList = {};
 
 	do {

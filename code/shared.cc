@@ -260,6 +260,11 @@ float SecondsElapsed (perf_t perf)
 	return seconds;
 }
 
+file_list GetFileList_r ()
+{
+	
+}
+
 void TestRecursiveFileList ()
 {
 	file_list fileList = {0};

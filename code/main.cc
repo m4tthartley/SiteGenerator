@@ -44,6 +44,8 @@ enum page_content_type {
 	CONTENT_IMAGE,
 	CONTENT_AUTHOR,
 	CONTENT_BLOG_LIST,
+	CONTENT_VIDEO,
+	CONTENT_YOUTUBE,
 };
 
 enum paragraph_word_type {
@@ -77,6 +79,10 @@ struct page_content {
 			char fileName[64];
 			char caption[256];
 		} image;
+		struct {
+			char fileName[64];
+			char caption[256];
+		} video;
 		struct {
 			char str[256];
 		} author;
@@ -781,6 +787,28 @@ void ParsePage (page *p, char *file)
 			} else if (strcmp(t.str, "!blog") == 0) {
 				content->type = CONTENT_BLOG_LIST;
 				AddContent(p, content);
+			} else if (strcmp(t.str, "!video") == 0) {
+				content->type = CONTENT_VIDEO;
+				t = GetContentToken(&tizer);
+				if (t.type = TOKEN_FILE) {
+					strcpy(content->video.fileName, t.str);
+					t = ReadUntilNewLine(&tizer);
+					strcpy(content->video.caption, t.str);
+					AddContent(p, content);
+				} else {
+					printf("Error, missing video path");
+				}
+			} else if (strcmp(t.str, "!youtube") == 0) {
+				content->type = CONTENT_YOUTUBE;
+				t = GetContentToken(&tizer);
+				if (t.type = TOKEN_FILE) {
+					strcpy(content->video.fileName, t.str);
+					t = ReadUntilNewLine(&tizer);
+					strcpy(content->video.caption, t.str);
+					AddContent(p, content);
+				} else {
+					printf("Error, missing youtube link");
+				}
 			} else {
 				/*TODO: New idea for parapraph parsing,
 						ReadUntilOpenBracket and save section,
@@ -1230,15 +1258,27 @@ void Compile ()
 	printf("Finished in %.3fs, memory %ikb %i%% \n", compileTime, MemoryUsed / KiloBytes(1), (s32)memoryPercentage);
 }
 
-int main ()
+int main (int argc, char **argv)
 {
-	TestRecursiveFileList();
+	/*printf("%i", argc);
+	printf("%s", argv[0]);
+	printf("%s", argv[1]);*/
+	if (argc > 1) {
+		if (strcmp(argv[1], "giantjelly") == 0) {
+			siteId = 0;
+		}
+		if (strcmp(argv[1], "matt") == 0) {
+			siteId = 1;
+		}
+	}
+
+	// TestRecursiveFileList();
 
 	InitMemory();
 
 	file_list masterFileList = {};
 
-	do {
+	/*do*/ {
 		file_list fl0 = GetFileList("*.page");
 		file_list fl1 = GetFileList("posts/*.blog");
 		file_list fl2 = GetFileList("*.cfg");
@@ -1265,9 +1305,10 @@ int main ()
 			}
 		}
 
-		Sleep(1000);
-	} while (true);
+		// Sleep(1000);
+	} /*while (true);*/
+	// note: disabled this looping to try using generator in a sublime build
 
-	system("pause");
+	// system("pause");
 	return 0;
 }

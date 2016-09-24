@@ -260,10 +260,10 @@ float SecondsElapsed (perf_t perf)
 	return seconds;
 }
 
-file_list GetFileList_r ()
+/*file_list GetFileList_r ()
 {
 	
-}
+}*/
 
 void TestRecursiveFileList ()
 {
@@ -293,5 +293,5 @@ void TestRecursiveFileList ()
 		FindClose(FileHandle);
 	}
 
-	return fileList;
+	// return fileList;
 }

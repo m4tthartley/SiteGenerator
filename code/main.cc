@@ -17,9 +17,20 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <windows.h>
 #include <sys/stat.h>
-#include <direct.h>
+
+#ifdef _WIN32
+#	include <windows.h>
+#	include <direct.h>
+#endif
+
+#ifdef __APPLE__
+#	include <errno.h>
+
+void mkdir (char *name) {
+	mkdir(name, 0755);
+}
+#endif
 
 #include "shared.cc"
 
@@ -138,29 +149,32 @@ char *GetPrintDate (page *post)
 
 #include "output.cc"
 
+#if 0
 void AddFileStat (char *FileName)
 {
 	struct _stat64 Stat;
 	_stat64(FileName, &Stat);
 }
+#endif
 
 char *ReadFileDataOrError (char *FileName)
 {
+	char *FileData = NULL;
 	FILE *FileHandle = fopen(FileName, "r");
-	if (!FileHandle)
+	if (FileHandle)
 	{
+		fseek(FileHandle, 0, SEEK_END);
+		u32 FileSize = ftell(FileHandle);
+		fseek(FileHandle, 0, SEEK_SET);
+
+		FileData = PushMemory(FileSize + 1);
+		fread(FileData, sizeof(char), FileSize, FileHandle);
+		fclose(FileHandle);
+	} else {
 		Error("Unable to open file");
 		Error(FileName);
 		printf(strerror(errno));
 	}
-
-	fseek(FileHandle, 0, SEEK_END);
-	u32 FileSize = ftell(FileHandle);
-	fseek(FileHandle, 0, SEEK_SET);
-
-	char *FileData = PushMemory(FileSize + 1);
-	fread(FileData, sizeof(char), FileSize, FileHandle);
-	fclose(FileHandle);
 
 	return FileData;
 }
@@ -264,8 +278,8 @@ void RestartLine (tokenizer *tizer)
 
 b32 CharIsAlpha (char c)
 {
-	if (c >= 'a' && c <= 'z' ||
-		c >= 'A' && c <= 'Z') {
+	if ((c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z')) {
 		return true;
 	} else {
 		return false;
@@ -274,9 +288,9 @@ b32 CharIsAlpha (char c)
 
 b32 CharIsAlphaNumeric (char c)
 {
-	if (c >= 'a' && c <= 'z' ||
-		c >= 'A' && c <= 'Z' ||
-		c >= '0' && c <= '9') {
+	if ((c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
+		(c >= '0' && c <= '9')) {
 		return true;
 	} else {
 		return false;
@@ -575,7 +589,7 @@ b32 FirstPartOfStrEquals (char *str, char *checkStr)
 
 menu LoadMenuConfig ()
 {
-	file_data MenuConfig = Win32ReadFile("menu.cfg");
+	file_data MenuConfig = FRead("menu.cfg");
 	// printf("Menu config: %s \n", MenuConfig.Data);
 
 	menu m = {};
@@ -675,6 +689,7 @@ void GenImagePath (page *p)
 		s32 tempImageLen = strlen("output/assets/posts/") + (strlen(p->FileName)) + 1 + extLen;
 		char *tempImagePath = PushMemory(tempImageLen);
 		sprintf(tempImagePath, "output/assets/posts/%s", p->FileName);
+
 		s32 actualLen = strlen(tempImagePath);
 		char *ext = tempImagePath + strlen(tempImagePath);
 		ext[0] = '.';
@@ -682,6 +697,7 @@ void GenImagePath (page *p)
 		ext[2] = 'n';
 		ext[3] = 'g';
 
+#ifdef _WIN32
 		DWORD fileAttributes = GetFileAttributes(tempImagePath);
 		if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
 			ext[0] = '.';
@@ -696,6 +712,23 @@ void GenImagePath (page *p)
 				printf("Cannot find image file for %s \n", p->FileName);
 			}
 		}
+#endif
+#ifdef __APPLE__
+		FILE *fileAttributes = fopen(tempImagePath, "r");
+		if (!fileAttributes) {
+			ext[0] = '.';
+			ext[1] = 'j';
+			ext[2] = 'p';
+			ext[3] = 'g';
+
+			fileAttributes = fopen(tempImagePath, "r");
+			if (fileAttributes) {
+				jpg = true;
+			} else {
+				printf("Cannot find image file for %s \n", p->FileName);
+			}
+		}
+#endif
 	}
 
 	p->Image = PushMemory(strlen("posts/") + (strlen(p->FileName)) + 1 + extLen);
@@ -790,7 +823,7 @@ void ParsePage (page *p, char *file)
 			} else if (strcmp(t.str, "!video") == 0) {
 				content->type = CONTENT_VIDEO;
 				t = GetContentToken(&tizer);
-				if (t.type = TOKEN_FILE) {
+				if (t.type == TOKEN_FILE) {
 					strcpy(content->video.fileName, t.str);
 					t = ReadUntilNewLine(&tizer);
 					strcpy(content->video.caption, t.str);
@@ -801,7 +834,7 @@ void ParsePage (page *p, char *file)
 			} else if (strcmp(t.str, "!youtube") == 0) {
 				content->type = CONTENT_YOUTUBE;
 				t = GetContentToken(&tizer);
-				if (t.type = TOKEN_FILE) {
+				if (t.type == TOKEN_FILE) {
 					strcpy(content->video.fileName, t.str);
 					t = ReadUntilNewLine(&tizer);
 					strcpy(content->video.caption, t.str);
@@ -985,13 +1018,16 @@ void Compile ()
 
 		char s[64];
 		sprintf(s, "posts/%s", blogFiles.files[i].name);
-		char *blogFileData = ReadFileDataOrError(s);
-		// page *blogPage = (page*)PushMemory(sizeof(page));
-		blogPage->FileName = blogFiles.files[i].name;
-		blogPage->Post = true;
-		ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
 
-		++blogList->count;
+		char *blogFileData = ReadFileDataOrError(s);
+		if (blogFileData) {
+			// page *blogPage = (page*)PushMemory(sizeof(page));
+			blogPage->FileName = blogFiles.files[i].name;
+			blogPage->Post = true;
+			ParsePage(blogPage, blogFileData); // NOTE: ParsePage zeros the structure
+
+			++blogList->count;
+		}
 	}
 
 	BubbleSortFilesLatestTop(blogList);
@@ -1004,11 +1040,12 @@ void Compile ()
 		char s[64];
 		sprintf(s, "%s", pageFiles.files[i].name);
 		char *pageFileData = ReadFileDataOrError(s);
-		
-		p->FileName = pageFiles.files[i].name;
-		ParsePage(p, pageFileData); // NOTE: ParsePage zeros the structure
+		if (pageFileData) {
+			p->FileName = pageFiles.files[i].name;
+			ParsePage(p, pageFileData); // NOTE: ParsePage zeros the structure
 
-		++pageList->count;
+			++pageList->count;
+		}
 	}
 
 #if 0
@@ -1296,7 +1333,14 @@ int main (int argc, char **argv)
 		{
 			forc (fileList.count)
 			{
-				if (CompareFileTime(&fileList.files[i].writeTime, &masterFileList.files[i].writeTime))
+				if (
+#ifdef _WIN32
+					CompareFileTime(&fileList.files[i].writeTime, &masterFileList.files[i].writeTime)
+#endif
+#ifdef __APPLE__
+					fileList.files[i].writeTime != masterFileList.files[i].writeTime
+#endif
+					)
 				{
 					Compile();
 					masterFileList = fileList;

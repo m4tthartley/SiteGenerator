@@ -1335,7 +1335,7 @@ int main (int argc, char **argv)
 			{
 				if (
 #ifdef _WIN32
-					CompareFileTime(&fileList.files[i].writeTime, &masterFileList.files[i].writeTime)
+					CompareFileTime((FILETIME*)&fileList.files[i].writeTime, (FILETIME*)&masterFileList.files[i].writeTime)
 #endif
 #ifdef __APPLE__
 					fileList.files[i].writeTime != masterFileList.files[i].writeTime

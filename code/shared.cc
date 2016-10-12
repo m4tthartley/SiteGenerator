@@ -83,7 +83,7 @@ int64 GetPerformanceFrequency ()
 	return freq.QuadPart;
 }
 
-LARGE_INTEGER globalPerformanceFrequency = GetPerformanceFrequency();
+int64 globalPerformanceFrequency = GetPerformanceFrequency();
 #endif
 
 char *Memory;
@@ -217,7 +217,7 @@ file_list GetFileList (char *WildCard)
 		while (TRUE)
 		{
 			strcpy(fileList.files[fileList.count].name, FindData.cFileName);
-			fileList.files[fileList.count].writeTime = FindData.ftLastWriteTime;
+			fileList.files[fileList.count].writeTime = *(uint64*)&FindData.ftLastWriteTime;
 			++fileList.count;
 
 			// DWORD fileAttributes = GetFileAttributes(FindData.cFileName);
@@ -316,7 +316,7 @@ float SecondsElapsed (perf_t perf)
 {
 	perf_t newPerf = GetPerfTime();
 	float diff = (float)(newPerf.time - perf.time);
-	float seconds = diff / (float)globalPerformanceFrequency.QuadPart;
+	float seconds = diff / (float)globalPerformanceFrequency;
 	return seconds;
 }
 #endif

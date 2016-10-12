@@ -187,7 +187,7 @@ void O_Page (FILE *f, page *p, page_list *blogList)
 				sprintf(s, "%s<img src=\"/assets/%s\">\n<p class=\"caption\">%s</p>\n", s, content->image.fileName, content->image.caption);
 			} break;
 			case CONTENT_AUTHOR: {
-				sprintf(s, "%s<p class=\"author\">by %s on %s</p>\n", s, content->author.str, GetPrintDate(p));
+				sprintf(s, "%s<p class=\"date\">Posted on %s</p>\n", s, GetPrintDate(p));
 			} break;
 			case CONTENT_BLOG_LIST: {
 				fiz (blogList->count) {

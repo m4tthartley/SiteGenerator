@@ -55,6 +55,7 @@ SiteTemplates templates[2] = {
 		"<style type=\"text/css\">\n"
 		"%s"
 		"</style>\n"
+		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
 		"</head>\n"
 		"<body>\n"
 		"<h2 class=\"headertitle\">Matt Hartley's blog</h2>\n"
@@ -74,7 +75,7 @@ SiteTemplates templates[2] = {
 		    "<h2><a href=\"%s\">%s</a></h2>"
 		    "<p>%s<br>%s</p>"
 		  "</div>"
-		  "<a href=\"%s\"><img src=\"/assets/%s\"></a>"
+		  //"<a href=\"%s\"><img src=\"/assets/%s\"></a>"
 		"</div>"
 		,
 		"%s<a href=\"%s\" class=\"menu%s\">%s</a> \n"

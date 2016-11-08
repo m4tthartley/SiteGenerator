@@ -39,7 +39,7 @@
 			"file": "main.cc",
 			"settings":
 			{
-				"buffer_size": 29681,
+				"buffer_size": 30417,
 				"line_ending": "Unix"
 			}
 		},
@@ -47,7 +47,7 @@
 			"file": "output.cc",
 			"settings":
 			{
-				"buffer_size": 6116,
+				"buffer_size": 6175,
 				"line_ending": "Unix"
 			}
 		},
@@ -55,7 +55,7 @@
 			"file": "shared.cc",
 			"settings":
 			{
-				"buffer_size": 5573,
+				"buffer_size": 6884,
 				"line_ending": "Unix"
 			}
 		}
@@ -389,15 +389,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 29681,
+						"buffer_size": 30417,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								279,
-								279
+								30240,
+								30240
 							]
 						],
 						"settings":
@@ -406,7 +406,7 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 20962.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 1,
@@ -418,15 +418,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 6116,
+						"buffer_size": 6175,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								1227,
-								1227
+								1627,
+								1627
 							]
 						],
 						"settings":
@@ -435,7 +435,7 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 336.0,
+						"translation.y": 624.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
@@ -447,15 +447,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 5573,
+						"buffer_size": 6884,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								4921,
-								4921
+								6026,
+								6026
 							]
 						],
 						"settings":
@@ -464,7 +464,7 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 3720.0,
+						"translation.y": 4775.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 2,
@@ -1065,7 +1065,7 @@
 	"show_minimap": true,
 	"show_open_files": false,
 	"show_tabs": false,
-	"side_bar_visible": false,
+	"side_bar_visible": true,
 	"side_bar_width": 259.0,
 	"status_bar_visible": true,
 	"template_settings":

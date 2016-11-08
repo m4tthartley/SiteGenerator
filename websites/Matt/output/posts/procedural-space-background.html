@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Procedurally generated space background</title>
+<meta name="description" content="My procedurally generated background for a space game">
+<style type="text/css">
+* {margin: 0px;padding: 0px;box-sizing: border-box;}
+body {background-color: #fff;font-family: georgia, "times new roman", times, serif;font-size: 0.9em;line-height: 1.5em;color: #000;-webkit-font-smoothing: antialiased;background-image: url(/assets/header.png);    background-repeat: repeat no-repeat;    background-position: 50% 0;    margin-top: 120px;    font-size-adjust: none;    -webkit-font-size-adjust: none;}
+h1 {font-weight: normal;line-height: 1em;}
+h1, h2, p, li {margin-top: 1.5em;}
+.date {color: #fff;background-color: #000;display: inline-block;padding: 0.5em;}
+p.tags {color: #999;}
+p.caption {margin-top: 0em;color: #999;/*font-size: 80%;*/}
+a {/* Color #3ae */color: #3ae;/*border-bottom: 3px solid #ccf;*/text-decoration: none;}
+a:hover {/*text-decoration: underline;*/color: #000;border-bottom: 3px solid #000;}
+h2 a {color: #000;}
+h2 a:hover {color: #3ae;text-decoration: none;border-bottom: 0;}
+h2.headertitle {width: 720px;margin-left: auto;margin-right: auto;color: #fff;}
+img {width: 100%;margin-top: 1.5em;}
+video {margin-top: 1.5em;}
+.content {width: 740px;margin-left: auto;margin-right: auto;padding-left: 10px;padding-right: 10px;padding-bottom: 50px;}
+.menu {width: 740px;margin-left: auto;margin-right: auto;padding-left: 10px;padding-right: 10px;margin-top: 20px;display: table;}
+.menu a {border-bottom: 4px solid transparent;color: #3ae;float: left;margin-right: 20px;}
+.menu a:hover {border-bottom: 4px solid #3ae;text-decoration: none;}
+.menu a.left {}
+/*.menu .menuBlog,.menu .menuAbout {float: left;margin-left: 0px;margin-right: 20px;}
+.menu .menuTwitter,.menu .menuGitHub {margin-left: 20px;float: right;}*/.blog {display: table;margin-top: 40px;/*border-top: 2px solid #000;*/width: 100%;}
+.blog img {/*width: 360px;*//*float: right;*/margin-top: 10px;}
+.blog .txt {/*width: 360px;*//*float: left;*/}
+.blog .txt p {/*margin-top: 0.5em;*/}
+.blog .txt h2 {margin-top: 0.5em;/*width: 300px;*/}
+.footer {margin-top: 80px;border-top: 1px solid #999;}
+.footer p {color: #999;}
+.video {margin-top: 1.5em;position: relative;width: 100%;height: 0;padding-top: 56.25%;}
+.video iframe {position: absolute;width: 100%;height: 100%;top: 0;left: 0;right: 0;bottom: 0;}
+@media all and (max-width: 739px) {/*body {font-size: 1.8em;}*/.content {width: 100%;padding-left: 20px;padding-right: 20px;}
+.blog img,.blog .txt {width: 100%;}
+.blog .txt p {margin-top: 5px;}
+video {width: 100%;}
+.menu {width: 100%;}
+h2.headertitle {width: 100%;padding-left: 10px;}}
+@media all and (max-width: 720px) {.img-container {margin-left: -20px;margin-right: -20px;}}
+/*.content {width: 100%;}
+.content p,.content img {width: 720px;display: block;margin-left: auto;margin-right: auto;}
+.img-container {width: 100%;}
+.img-container img {width: auto;max-width: 100%;}*/</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<h2 class="headertitle">Matt Hartley's blog</h2>
+<div class="menu">
+<a href="/" class="menuBlog">Blog</a> 
+<a href="/about.html" class="menuAbout">About</a> 
+<a href="http://twitter.com/m4tt53" class="menuTwitter">Twitter</a> 
+<a href="http://github.com/m4tthartley" class="menuGitHub">GitHub</a> 
+</div>
+<div class="content">
+<h1>Procedurally generated space background</h1>
+<p class="date">Posted on 26 Oct 2016</p>
+<p> The game I'm currently working on is a 2D space game, and instead of having a static image for a background I wanted something procedurally generated that could change over time. A while ago I saw <a href="https://www.twitch.tv/sssmcgrath">Shawn McGrath</a> make a procedural background on stream using particles and Curl-Noise for some cool fluid motion. I really liked what he did, so I decided to play around with particle backgrounds myself.</p>
+<p> The first step is to create some particles and apply some Curl-Noise to their movement. To get a particle's movement vector you use the particle's position in a noise function like Classic Perlin noise or Simplex noise, and then evaluate the partial derivatives. <a href="https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph2007-curlnoise.pdf">Read the paper</a> if you're interested in the exact math.</p>
+<p> Here I'm using around 5000 particles created at random positions. They simulate for an amount of time and then are removed and recreated again at a different position. The colors just represent the direction that the particles are moving in.</p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/9dvM85jGLxw" frameborder="0" allowfullscreen></iframe></div><p> Next I made the particles bigger and fade out from the middle, and the colors slowly fade between red and blue. I also do a small fade when the particles are created and destroyed so it isn't jarring when they pop in and out. There's also some Cellular noise thrown into the mix here as I was playing around with it. That's what creates the solid lines of particles. I removed it again after this as I didn't like the effect I was getting.</p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/gPQFSXmJC_A" frameborder="0" allowfullscreen></iframe></div><p> After this I stopped clearing the screen each frame and instead ran a post-process shader that slowly clears a little bit of the color each frame to create a blur effect. Similar to the effect you can get from using the OpenGL accumulation buffer.</p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/TrEJcJYBqXg" frameborder="0" allowfullscreen></iframe></div><p> I then played around with the blending mode until I got the effect I wanted, with the colors adding together to create bright spots in places.</p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/eOK0_E8nrzU" frameborder="0" allowfullscreen></iframe></div><p> I'm really liking the effects I've managed to get so far, even though they aren't that close to my goal yet. Next I decided to swap out the particles with some wispy sprites of random shapes that I made in Photoshop.</p>
+<img src="/assets/particles_blog.png">
+<p class="caption"></p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/xWmhpm7_SgE" frameborder="0" allowfullscreen></iframe></div><p> As you can see this is super awesome. Now I increased the size of the particle spawn area to fill the entire screen. Because they are now more spread out there's less super bright areas which I would have had to fix by reducing the number of particles anyway. I also changed the colors around a bit to use green and blue instead of red and blue.</p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/Y5l0UUYxW_c" frameborder="0" allowfullscreen></iframe></div><p> Finally I generated a fullscreen alpha mask using Perlin noise and animated it with the Z value. I also slowed down the animation quite a bit as it was only fast for testing, you want a game background to be subtle and not distracting. I think maybe the alpha mask animation is a bit too fast as well but I will tweak that a bit later.</p>
+<div class="video"><iframe width="720" src="https://www.youtube.com/embed/XeQCY-yXjmc" frameborder="0" allowfullscreen></iframe></div><p> I'm pretty happy with the results I got out of this. I'm not sure if I'll actually use this in the game as I have some other ideas for backgrounds as well. If I do it needs some more work and a lot of optimization as it's super slow at the moment. Nevertheless I'm very happy with it.</p>
+<p> I really enjoyed all the procedural graphics work so I'll have to do some more things like this in the future. Maybe some demoscene-ish stuff synced to music or something.</p>
+</div>
+</body>
+</html>

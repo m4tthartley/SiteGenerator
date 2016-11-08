@@ -1,0 +1,43 @@
+desc: My procedurally generated background for a space game
+date: 26/10/2016
+
+[Procedurally generated space background]
+author: Matt
+
+The game I'm currently working on is a 2D space game, and instead of having a static image for a background I wanted something procedurally generated that could change over time. A while ago I saw (https://www.twitch.tv/sssmcgrath Shawn McGrath) make a procedural background on stream using particles and Curl-Noise for some cool fluid motion. I really liked what he did, so I decided to play around with particle backgrounds myself.
+
+The first step is to create some particles and apply some Curl-Noise to their movement. To get a particle's movement vector you use the particle's position in a noise function like Classic Perlin noise or Simplex noise, and then evaluate the partial derivatives. (https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph2007-curlnoise.pdf Read the paper) if you're interested in the exact math.
+
+Here I'm using around 5000 particles created at random positions. They simulate for an amount of time and then are removed and recreated again at a different position. The colors just represent the direction that the particles are moving in.
+
+!youtube https://www.youtube.com/embed/9dvM85jGLxw
+
+Next I made the particles bigger and fade out from the middle, and the colors slowly fade between red and blue. I also do a small fade when the particles are created and destroyed so it isn't jarring when they pop in and out. There's also some Cellular noise thrown into the mix here as I was playing around with it. That's what creates the solid lines of particles. I removed it again after this as I didn't like the effect I was getting.
+
+!youtube https://www.youtube.com/embed/gPQFSXmJC_A
+
+After this I stopped clearing the screen each frame and instead ran a post-process shader that slowly clears a little bit of the color each frame to create a blur effect. Similar to the effect you can get from using the OpenGL accumulation buffer.
+
+!youtube https://www.youtube.com/embed/TrEJcJYBqXg
+
+I then played around with the blending mode until I got the effect I wanted, with the colors adding together to create bright spots in places.
+
+!youtube https://www.youtube.com/embed/eOK0_E8nrzU
+
+I'm really liking the effects I've managed to get so far, even though they aren't that close to my goal yet. Next I decided to swap out the particles with some wispy sprites of random shapes that I made in Photoshop.
+
+particles_blog.png
+
+!youtube https://www.youtube.com/embed/xWmhpm7_SgE
+
+As you can see this is super awesome. Now I increased the size of the particle spawn area to fill the entire screen. Because they are now more spread out there's less super bright areas which I would have had to fix by reducing the number of particles anyway. I also changed the colors around a bit to use green and blue instead of red and blue.
+
+!youtube https://www.youtube.com/embed/Y5l0UUYxW_c
+
+Finally I generated a fullscreen alpha mask using Perlin noise and animated it with the Z value. I also slowed down the animation quite a bit as it was only fast for testing, you want a game background to be subtle and not distracting. I think maybe the alpha mask animation is a bit too fast as well but I will tweak that a bit later.
+
+!youtube https://www.youtube.com/embed/XeQCY-yXjmc
+
+I'm pretty happy with the results I got out of this. I'm not sure if I'll actually use this in the game as I have some other ideas for backgrounds as well. If I do it needs some more work and a lot of optimization as it's super slow at the moment. Nevertheless I'm very happy with it.
+
+I really enjoyed all the procedural graphics work so I'll have to do some more things like this in the future. Maybe some demoscene-ish stuff synced to music or something.

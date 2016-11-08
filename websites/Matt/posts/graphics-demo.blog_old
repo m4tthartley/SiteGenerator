@@ -1,0 +1,19 @@
+desc: A blog post to test things
+date: 19/3/2016
+
+[Test blog post]
+author: Matt
+!image
+
+!youtube https://www.youtube.com/embed/6yiqdqUFhRY
+
+This is a blog post to test things that might need testing or something like that.
+
+If you want to use a link you do it like this: (https://en.wikipedia.org/wiki/Microsoft_Windows Interesting link).
+
+You can also use images like this:
+
+oblivion-1.jpg The Last of Us
+
+Here's a list of blog posts:
+!blog

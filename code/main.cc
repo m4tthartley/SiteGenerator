@@ -785,12 +785,11 @@ void ParsePage (page *p, char *file)
 			if (firstHeaderUsed) {
 				content->type = CONTENT_SECONDARY_HEADER;
 			} else {
+				p->Title = PushMemory(strlen(t.str) + 1);
+				strcpy(p->Title, t.str);
 				content->type = CONTENT_HEADER;
 				firstHeaderUsed = true;
 			}
-
-			p->Title = PushMemory(strlen(t.str) + 1);
-			strcpy(p->Title, t.str);
 
 			strcpy(content->header.str, t.str);
 			AddContent(p, content);
@@ -842,6 +841,11 @@ void ParsePage (page *p, char *file)
 				} else {
 					printf("Error, missing youtube link");
 				}
+			} else if (strcmp(t.str, "!header") == 0) {
+				t = ReadUntilNewLine(&tizer);
+				content->type = CONTENT_HEADER;
+				strcpy(content->header.str, t.str);
+				AddContent(p, content);
 			} else {
 				/*TODO: New idea for parapraph parsing,
 						ReadUntilOpenBracket and save section,

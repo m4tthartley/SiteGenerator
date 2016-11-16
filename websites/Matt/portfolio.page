@@ -1,0 +1,71 @@
+
+[Portfolio]
+
+
+[Current game project]
+
+This is the game I'm currently working on, a 2D, open world space rpg. I'm using stb_image, stb_truetype and ImGui for debug UI, but apart from that everything is from scratch in C++.
+
+{video of spacegame}
+
+
+[Software renderer]
+
+I'm working on a software renderer as a side project to learn more about what happens on the GPU and for fun. The plan is for it to be 3D with lighting and shadows. Everything is from scratch in C++, (https://github.com/m4tthartley/SoftwareRenderer Source code can be found here)
+
+{video of software renderer}
+
+
+[Website generator]
+
+I've built a simple website generator that I'm using for this site and (http://giantjelly.net giantjelly.net).
+
+Made from scratch in C++, (https://github.com/m4tthartley/WebsiteTools/blob/master/code/main.cc Source code can be found here)
+
+
+[Graphics demo]
+
+This is a project for me to play around with GPU graphics and try out techniques before putting them in my game. Currently it has basic lighting, model loading/rendering and I just started doing shadows. Made from scratch in C++.
+
+graphics_demo.png
+
+
+[Ludumdare]
+
+I've entered the Ludumdare game jam many times, (http://ludumdare.com/compo/author/matthartley/ you can find my entries here).
+
+
+!header Old unfinished projects
+
+These are some projects I started but didn't finish a long time ago.
+
+
+[Wastelands]
+
+Wastelands is a game I worked on with some friends, a sidescroller with online multiplayer matches. Made in Java with the Light Weight Java Game Library.
+
+!youtube https://www.youtube.com/embed/KmrsT2ypCZY
+
+[Lime]
+
+Lime is block building game/Minecraft clone that I started making when I was really into Minecraft. Don't ask me why it's called Lime. Made in Java with the Light Weight Java Game Library.
+
+!youtube https://www.youtube.com/embed/H_G0uPpK7wc
+
+[First person shooter]
+
+This is first person shooter in a block world. Made in Java with the Light Weight Java Game Library.
+
+!youtube https://www.youtube.com/embed/GpW4iTB2YfI
+
+[First person Shooter in Unity]
+
+Another first person shooter I started when I was trying out Unity.
+
+!youtube https://www.youtube.com/embed/6AC3ErOZwMM
+
+[Kittens]
+
+This is tiny game where you click on the ground to place bowls of food and the cats eat and breed and soon you have a screen full of cats. Why? I have no idea.
+
+!youtube https://www.youtube.com/embed/XCl6SdCd814
